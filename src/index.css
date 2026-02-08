@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #f8fafc;
+    color: #1e293b;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* 工具类 */
+@layer components {
+    .card {
+        @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+    }
+
+    .btn-primary {
+        @apply bg-orange-500 text-white px-4 py-2 rounded-lg font-medium transition-all hover:bg-orange-600 active:scale-95;
+    }
+
+    .btn-ghost {
+        @apply px-3 py-2 rounded-lg transition-colors hover:bg-slate-100 text-slate-600;
+    }
+}
