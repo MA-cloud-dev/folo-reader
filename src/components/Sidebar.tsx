@@ -2,12 +2,17 @@
  * 侧边栏组件 - 订阅源列表
  */
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Trash2, Rss, ChevronRight, Settings } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Rss, ChevronRight, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useFeedStore } from '@/stores/feedStore'
 import { clsx } from 'clsx'
 import { AISettings } from './AISettings'
 
-export function Sidebar() {
+interface SidebarProps {
+    isExpanded: boolean
+    onToggle: () => void
+}
+
+export function Sidebar({ isExpanded, onToggle }: SidebarProps) {
     const {
         feeds,
         selectedFeed,
@@ -43,10 +48,12 @@ export function Sidebar() {
             setShowAddModal(false)
         } catch (err) {
             console.error('Failed to add feed:', err)
+            alert('添加订阅源失败,请检查 URL 是否正确')
         } finally {
             setIsAdding(false)
         }
     }
+
 
     // 按分类分组
     const groupedFeeds = feeds.reduce((acc, feed) => {
@@ -56,9 +63,41 @@ export function Sidebar() {
         return acc
     }, {} as Record<string, typeof feeds>)
 
+    // 收缩状态显示
+    if (!isExpanded) {
+        return (
+            <div className="flex flex-col h-full items-center py-4 gap-4">
+                {/* 展开按钮 */}
+                <button
+                    onClick={onToggle}
+                    className="btn-ghost p-2 text-slate-600 hover:text-orange-500"
+                    title="展开侧边栏"
+                >
+                    <PanelLeftOpen size={20} />
+                </button>
+
+                {/* RSS 图标 */}
+                <div className="flex-1 flex items-center">
+                    <Rss size={20} className="text-slate-400" />
+                </div>
+
+                {/* 设置图标 */}
+                <button
+                    onClick={() => setShowSettings(true)}
+                    className="btn-ghost p-2 text-slate-400 hover:text-slate-600"
+                    title="AI 设置"
+                >
+                    <Settings size={16} />
+                </button>
+
+                {/* AI 设置弹窗 */}
+                <AISettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+            </div>
+        )
+    }
+
     return (
-        <div className="flex flex-col h-full">
-            {/* 头部 */}
+        <div className="flex flex-col h-full">{/* 头部 */}
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
                 <h1 className="text-lg font-semibold text-slate-800">Folo</h1>
                 <div className="flex gap-1">
@@ -79,6 +118,13 @@ export function Sidebar() {
                         title="添加订阅"
                     >
                         <Plus size={18} />
+                    </button>
+                    <button
+                        onClick={onToggle}
+                        className="btn-ghost p-2"
+                        title="收缩侧边栏"
+                    >
+                        <PanelLeftClose size={18} />
                     </button>
                 </div>
             </div>
@@ -132,10 +178,11 @@ export function Sidebar() {
                                     )}
                                     <span className="flex-1 truncate text-sm">{feed.title}</span>
                                     <button
-                                        onClick={(e) => {
+                                        onClick={async (e) => {
                                             e.stopPropagation()
-                                            if (confirm(`确定删除 "${feed.title}"？`)) {
-                                                deleteFeed(feed.id)
+                                            const confirmed = window.confirm(`确定删除 "${feed.title}"？`)
+                                            if (confirmed) {
+                                                await deleteFeed(feed.id)
                                             }
                                         }}
                                         className={clsx(

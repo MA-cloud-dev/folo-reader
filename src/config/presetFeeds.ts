@@ -12,74 +12,19 @@ export interface PresetFeed {
 }
 
 export const PRESET_FEEDS: PresetFeed[] = [
-    // ⚽ 足球相关
-    {
-        url: 'https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml',
-        title: 'BBC 英超',
-        category: '足球',
-        description: 'BBC 英超官方报道',
-    },
-    {
-        url: 'https://www.espn.com/espn/rss/soccer/news',
-        title: 'ESPN 足球',
-        category: '足球',
-        description: 'ESPN 国际足球新闻',
-        aiFilter: '只保留与英超、梅西、C罗、曼城、皇马、巴萨、迈阿密国际相关的内容',
-    },
-    {
-        url: 'https://rsshub.app/dongqiudi/top_news',
-        title: '懂球帝热门',
-        category: '足球',
-        description: '懂球帝热门足球资讯',
-        aiFilter: '只保留与英超、梅西、C罗相关的内容',
-    },
-
-    // 🤖 AI 应用
-    {
-        url: 'https://rsshub.app/github/trending/daily/all',
-        title: 'GitHub 热门',
-        category: 'AI 应用',
-        description: 'GitHub 每日趋势项目',
-        aiFilter: '只保留与 AI、机器学习、LLM、深度学习、GPT、开源工具相关的项目',
-    },
+    // 🤖 AI 前沿
     {
         url: 'https://hnrss.org/frontpage',
         title: 'Hacker News',
-        category: 'AI 应用',
-        description: 'Hacker News 头版热点',
-        aiFilter: '只保留与 AI、机器学习、开源项目、编程工具相关的内容',
+        category: 'AI 前沿',
+        description: '技术社区热点，配合 AI 筛选获取 AI 相关内容',
+        aiFilter: '只保留与 AI、机器学习、LLM、GPT、深度学习、OpenAI、Anthropic、Google AI 相关的内容',
     },
     {
-        url: 'https://huggingface.co/blog/feed.xml',
-        title: 'Hugging Face',
-        category: 'AI 应用',
-        description: 'Hugging Face 开源 AI 社区博客',
-    },
-
-    // 🧠 AI 理论
-    {
-        url: 'https://openai.com/blog/rss.xml',
-        title: 'OpenAI Blog',
-        category: 'AI 理论',
-        description: 'OpenAI 官方博客',
-    },
-    {
-        url: 'https://blog.research.google/feeds/posts/default?alt=rss',
-        title: 'Google AI',
-        category: 'AI 理论',
-        description: 'Google AI 研究博客',
-    },
-    {
-        url: 'https://www.anthropic.com/news.rss',
-        title: 'Anthropic',
-        category: 'AI 理论',
-        description: 'Claude 开发商官方动态',
-    },
-    {
-        url: 'https://rsshub.app/jiqizhixin/daily',
-        title: '机器之心',
-        category: 'AI 理论',
-        description: '中文 AI 前沿资讯',
+        url: 'https://www.technologyreview.com/feed/',
+        title: 'MIT 科技评论',
+        category: 'AI 前沿',
+        description: '麻省理工科技评论，深度技术分析',
     },
 ]
 

@@ -1,41 +1,64 @@
 /**
  * 文章列表组件 - AI摘要卡片流视图
  */
-import { useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { Clock, Star, CheckCircle, Sparkles, AlertCircle, Filter, Loader2 } from 'lucide-react'
+import { Clock, Star, CheckCircle, Filter, Loader2, PanelLeftClose, PanelLeftOpen, Rss } from 'lucide-react'
 import { useFeedStore } from '@/stores/feedStore'
 import { clsx } from 'clsx'
-import { isAIConfigured } from '@/services/ai'
 
-export function FeedList() {
+interface FeedListProps {
+    isExpanded: boolean
+    onToggle: () => void
+}
+
+export function FeedList({ isExpanded, onToggle }: FeedListProps) {
     const {
         articles,
         filteredArticles,
         selectedFeed,
         selectedArticle,
         selectArticle,
-        generateArticleSummary,
-        generatingSummaryIds,
         isFiltering,
     } = useFeedStore()
 
     // 使用筛选后的文章列表
     const displayArticles = filteredArticles.length > 0 ? filteredArticles : articles
 
-    // 选中订阅源时自动生成未有摘要的文章摘要
-    useEffect(() => {
-        if (!isAIConfigured()) return
+    // 收缩状态显示
+    if (!isExpanded) {
+        return (
+            <div className="flex flex-col h-full items-center py-4 gap-4">
+                {/* 展开按钮 */}
+                <button
+                    onClick={onToggle}
+                    className="btn-ghost p-2 text-slate-600 hover:text-orange-500"
+                    title="展开文章列表"
+                >
+                    <PanelLeftOpen size={20} />
+                </button>
 
-        const articlesWithoutSummary = displayArticles
-            .filter(a => !a.aiSummary)
-            .slice(0, 3)
-
-        articlesWithoutSummary.forEach(article => {
-            generateArticleSummary(article)
-        })
-    }, [selectedFeed?.id, filteredArticles.length])
+                {/* 文章图标或订阅源图标 */}
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                    {selectedFeed?.favicon ? (
+                        <img
+                            src={selectedFeed.favicon}
+                            alt=""
+                            className="w-6 h-6 rounded"
+                            onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none'
+                            }}
+                        />
+                    ) : (
+                        <Rss size={20} className="text-slate-400" />
+                    )}
+                    {displayArticles.length > 0 && (
+                        <span className="text-xs text-slate-400">{displayArticles.length}</span>
+                    )}
+                </div>
+            </div>
+        )
+    }
 
     if (!selectedFeed) {
         return (
@@ -49,9 +72,18 @@ export function FeedList() {
         <div className="flex flex-col h-full">
             {/* 头部 */}
             <div className="flex-shrink-0 p-4 border-b border-slate-200">
-                <h2 className="font-semibold text-slate-800 truncate">
-                    {selectedFeed.title}
-                </h2>
+                <div className="flex items-center justify-between mb-2">
+                    <h2 className="font-semibold text-slate-800 truncate flex-1">
+                        {selectedFeed.title}
+                    </h2>
+                    <button
+                        onClick={onToggle}
+                        className="btn-ghost p-2 ml-2"
+                        title="收缩文章列表"
+                    >
+                        <PanelLeftClose size={18} />
+                    </button>
+                </div>
                 <p className="text-sm text-slate-400 mt-1">
                     {selectedFeed.aiFilter ? (
                         <>
@@ -70,12 +102,6 @@ export function FeedList() {
                     ) : (
                         <>{articles.length} 篇文章</>
                     )}
-                    {!isAIConfigured() && (
-                        <span className="text-amber-500 ml-2">
-                            <AlertCircle size={12} className="inline mr-1" />
-                            未配置 AI
-                        </span>
-                    )}
                 </p>
             </div>
 
@@ -91,9 +117,7 @@ export function FeedList() {
                             key={article.id}
                             article={article}
                             isSelected={selectedArticle?.id === article.id}
-                            isGenerating={generatingSummaryIds.has(article.id)}
                             onSelect={() => selectArticle(article)}
-                            onGenerateSummary={() => generateArticleSummary(article)}
                         />
                     ))
                 )}
@@ -110,20 +134,15 @@ interface ArticleCardProps {
         pubDate: number
         isRead: boolean
         isStarred: boolean
-        aiSummary?: string
     }
     isSelected: boolean
-    isGenerating: boolean
     onSelect: () => void
-    onGenerateSummary: () => void
 }
 
 function ArticleCard({
     article,
     isSelected,
-    isGenerating,
     onSelect,
-    onGenerateSummary,
 }: ArticleCardProps) {
     const timeAgo = formatDistanceToNow(new Date(article.pubDate), {
         addSuffix: true,
@@ -154,37 +173,6 @@ function ArticleCard({
                 )}
                 {article.isRead && (
                     <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
-                )}
-            </div>
-
-            {/* AI 摘要 */}
-            <div className="mt-3">
-                {article.aiSummary ? (
-                    <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">
-                        <div className="flex items-center gap-1 mb-2 text-orange-500 font-medium">
-                            <Sparkles size={14} />
-                            <span className="text-xs">AI 摘要</span>
-                        </div>
-                        <p className="leading-relaxed whitespace-pre-wrap">
-                            {article.aiSummary}
-                        </p>
-                    </div>
-                ) : isAIConfigured() ? (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onGenerateSummary()
-                        }}
-                        disabled={isGenerating}
-                        className="text-sm text-orange-500 hover:underline flex items-center gap-1"
-                    >
-                        <Sparkles size={14} />
-                        {isGenerating ? '生成中...' : '生成 AI 摘要'}
-                    </button>
-                ) : (
-                    <p className="text-sm text-slate-400 italic">
-                        配置 API Key 后可生成摘要
-                    </p>
                 )}
             </div>
 

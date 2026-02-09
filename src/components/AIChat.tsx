@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, X, MessageSquare, Loader2, Trash2 } from 'lucide-react'
 import { useFeedStore } from '@/stores/feedStore'
-import { chatWithAI, isAIConfigured } from '@/services/ai'
+import { chatWithAIStream, isAIConfigured, AI_MODELS, DEFAULT_MODEL } from '@/services/ai'
 import { fetchArticleContent, extractTextFromHtml } from '@/services/rss'
 import { clsx } from 'clsx'
 
@@ -14,11 +14,24 @@ interface Message {
     role: 'user' | 'assistant'
     content: string
     timestamp: number
+    model?: string // AI 模型名称
 }
 
 interface AIChatProps {
     isOpen: boolean
     onClose: () => void
+}
+
+// 获取模型的显示名称
+function getModelDisplayName(model: string): string {
+    // 先在 AI_MODELS 中查找
+    for (const category of Object.values(AI_MODELS)) {
+        const found = category.find(m => m.id === model)
+        if (found) return found.name
+    }
+
+    // 如果没找到，返回原始 model名
+    return model
 }
 
 export function AIChat({ isOpen, onClose }: AIChatProps) {
@@ -28,6 +41,7 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
     const [isLoading, setIsLoading] = useState(false)
     const [articleContent, setArticleContent] = useState<string>('')
     const [isLoadingContent, setIsLoadingContent] = useState(false)
+    const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL) // 模型选择
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -75,7 +89,17 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
             timestamp: Date.now(),
         }
 
-        setMessages(prev => [...prev, userMessage])
+        // 创建空的 assistant 消息用于流式填充
+        const assistantMessageId = crypto.randomUUID()
+        const assistantMessage: Message = {
+            id: assistantMessageId,
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            model: selectedModel, // 记录使用的模型
+        }
+
+        setMessages(prev => [...prev, userMessage, assistantMessage])
         setInput('')
         setIsLoading(true)
 
@@ -86,30 +110,34 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
                 content: m.content,
             }))
 
-            // 调用 AI
-            const response = await chatWithAI(
+            // 调用流式 AI
+            await chatWithAIStream(
                 userMessage.content,
                 history,
                 selectedArticle?.title || '',
-                articleContent
+                articleContent,
+                (chunk) => {
+                    // 逐步追加内容
+                    setMessages(prev =>
+                        prev.map(m =>
+                            m.id === assistantMessageId
+                                ? { ...m, content: m.content + chunk }
+                                : m
+                        )
+                    )
+                },
+                selectedModel // 传入选中的模型
             )
-
-            const assistantMessage: Message = {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: response,
-                timestamp: Date.now(),
-            }
-
-            setMessages(prev => [...prev, assistantMessage])
         } catch (err) {
             console.error('AI chat error:', err)
-            setMessages(prev => [...prev, {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: '抱歉，发生了错误，请稍后重试。',
-                timestamp: Date.now(),
-            }])
+            // 更新错误消息
+            setMessages(prev =>
+                prev.map(m =>
+                    m.id === assistantMessageId
+                        ? { ...m, content: '抱歉，发生了错误，请稍后重试。' }
+                        : m
+                )
+            )
         } finally {
             setIsLoading(false)
         }
@@ -208,11 +236,9 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
                     messages.map((message) => (
                         <div
                             key={message.id}
-                            className={clsx(
-                                'flex gap-3',
-                                message.role === 'user' ? 'flex-row-reverse' : ''
-                            )}
+                            className="flex gap-2"
                         >
+                            {/* 头像 */}
                             <div
                                 className={clsx(
                                     'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
@@ -227,29 +253,41 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
                                     <Bot size={16} />
                                 )}
                             </div>
-                            <div
-                                className={clsx(
-                                    'max-w-[80%] rounded-xl px-4 py-2 text-sm leading-relaxed',
-                                    message.role === 'user'
-                                        ? 'bg-orange-500 text-white'
-                                        : 'bg-white border border-slate-200 text-slate-700'
+
+                            {/* 右侧内容区：模型名称 + 消息内容垂直排列 */}
+                            <div className="flex-1 flex flex-col gap-1">
+                                {/* 模型名称 */}
+                                {message.role === 'assistant' && message.model && (
+                                    <span className="text-[10px] text-slate-400">
+                                        {getModelDisplayName(message.model)}
+                                    </span>
                                 )}
-                            >
-                                <p className="whitespace-pre-wrap">{message.content}</p>
+
+                                {/* 消息气泡 */}
+                                <div
+                                    className={clsx(
+                                        'rounded-xl px-4 py-2 text-sm leading-relaxed w-fit max-w-full',
+                                        message.role === 'user'
+                                            ? 'bg-orange-500 text-white'
+                                            : 'bg-white border border-slate-200 text-slate-700'
+                                    )}
+                                >
+                                    {message.role === 'assistant' ? (
+                                        message.content ? (
+                                            <div
+                                                className="prose prose-sm max-w-none"
+                                                dangerouslySetInnerHTML={{ __html: message.content }}
+                                            />
+                                        ) : (
+                                            <Loader2 size={16} className="animate-spin text-orange-500" />
+                                        )
+                                    ) : (
+                                        <p className="whitespace-pre-wrap">{message.content}</p>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))
-                )}
-
-                {isLoading && (
-                    <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
-                            <Bot size={16} className="text-slate-600" />
-                        </div>
-                        <div className="bg-white border border-slate-200 rounded-xl px-4 py-2">
-                            <Loader2 size={16} className="animate-spin text-orange-500" />
-                        </div>
-                    </div>
                 )}
 
                 <div ref={messagesEndRef} />
@@ -257,6 +295,26 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
 
             {/* 输入区域 */}
             <div className="p-4 border-t border-slate-200 bg-white">
+                {/* 模型选择器 */}
+                <div className="mb-3">
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">模型选择</label>
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:border-orange-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none transition-colors"
+                    >
+                        <optgroup label="⚡ Fast 模型">
+                            {AI_MODELS.fast.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="🧠 Thinking 模型">
+                            {AI_MODELS.thinking.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                        </optgroup>
+                    </select>
+                </div>
                 <div className="flex gap-2">
                     <textarea
                         ref={inputRef}

@@ -156,7 +156,14 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     selectFeed: async (feed: Feed | null) => {
         set({ selectedFeed: feed, selectedArticle: null, filteredArticles: [] })
         if (feed) {
-            const articles = await dbHelpers.getArticlesByFeed(feed.id)
+            let articles = await dbHelpers.getArticlesByFeed(feed.id)
+
+            // 如果没有文章，自动刷新获取
+            if (articles.length === 0) {
+                await get().refreshFeed(feed.id)
+                articles = await dbHelpers.getArticlesByFeed(feed.id)
+            }
+
             set({ articles })
 
             // 如果该订阅源有 AI 筛选规则，进行筛选

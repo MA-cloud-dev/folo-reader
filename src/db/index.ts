@@ -14,9 +14,9 @@ export class FoloDatabase extends Dexie {
     constructor() {
         super('folo-minimal')
 
-        this.version(1).stores({
-            // 订阅源表：按 ID 索引，支持按分类查询
-            feeds: 'id, title, category, createdAt',
+        this.version(3).stores({
+            // 订阅源表：按 ID 索引，url 为唯一索引
+            feeds: 'id, title, category, &url, createdAt',
 
             // 文章表：按 ID 索引，支持按订阅源、时间、阅读状态查询
             articles: 'id, feedId, pubDate, isRead, isStarred',
@@ -36,8 +36,15 @@ export const db = new FoloDatabase()
  * 数据库操作辅助函数
  */
 export const dbHelpers = {
-    /** 添加订阅源 */
+    /** 添加订阅源（自动去重，如已存在则返回现有 ID） */
     async addFeed(feed: Omit<Feed, 'id' | 'createdAt'>): Promise<string> {
+        // 检查 URL 是否已存在
+        const existing = await db.feeds.where('url').equals(feed.url).first()
+        if (existing) {
+            console.log(`Feed already exists: ${feed.url}`)
+            return existing.id
+        }
+
         const id = crypto.randomUUID()
         await db.feeds.add({
             ...feed,

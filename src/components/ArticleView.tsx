@@ -125,9 +125,10 @@ export function ArticleView() {
                         <span>AI 摘要</span>
                     </div>
                     {selectedArticle.aiSummary ? (
-                        <div className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                            {selectedArticle.aiSummary}
-                        </div>
+                        <div
+                            className="text-slate-700 leading-relaxed prose prose-sm prose-slate max-w-none"
+                            dangerouslySetInnerHTML={{ __html: selectedArticle.aiSummary }}
+                        />
                     ) : (
                         <div className="flex items-center gap-2">
                             <button
