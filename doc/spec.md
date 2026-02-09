@@ -9,7 +9,9 @@
 | 样式 | TailwindCSS |
 | 状态 | Zustand |
 | 存储 | IndexedDB (Dexie.js) |
-| AI | SiliconFlow API |
+| AI | SiliconFlow API（用户可配置） |
+| 图标 | lucide-react |
+| 工具 | clsx（类名工具） |
 
 ---
 
@@ -48,32 +50,68 @@
 
 | 内容 | 存储 | 说明 |
 |------|------|------|
-| 订阅源信息 | ✅ IndexedDB | URL、名称、分类 |
+| 订阅源信息 | ✅ IndexedDB | URL、名称、分类、AI筛选规则 |
 | 文章元数据 | ✅ IndexedDB | 标题、链接、时间、阅读状态 |
 | AI 摘要 | ✅ IndexedDB | 缓存避免重复调用 |
 | 文章原文 | ❌ 不存储 | 点击时实时获取 |
 | 收藏原文 | ✅ IndexedDB | 用户主动收藏才保存 |
+| AI 筛选规则 | ✅ IndexedDB | 每个订阅源可配置筛选规则 |
 
 #### 3. RSS 获取
 
 ```typescript
-import Parser from 'rss-parser';
+// 使用原生 DOMParser 解析 RSS（避免 Node.js 依赖）
+const CORS_PROXIES = [
+    'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest=',
+]
 
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-
-async function fetchFeed(feedUrl: string) {
-  const response = await fetch(CORS_PROXY + encodeURIComponent(feedUrl));
-  const xml = await response.text();
-  const feed = await new Parser().parseString(xml);
+async function fetchFeed(url: string) {
+  // 1. 首先尝试直接访问
+  // 2. 失败则轮询使用 CORS 代理
+  const xmlText = await fetchWithProxy(url)
   
-  // 只存储元数据，不存原文
-  return feed.items.map(item => ({
-    id: item.guid || item.link,
-    title: item.title,
-    link: item.link,
-    pubDate: item.pubDate,
-    // content 不存储，按需获取
-  }));
+  // 使用 DOMParser 解析 RSS/Atom
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(xmlText, 'text/xml')
+  
+  // 支持 RSS 2.0 和 Atom 格式
+  const feedEl = doc.querySelector('feed') // Atom
+  const channelEl = doc.querySelector('channel') // RSS 2.0
+  
+  return feedEl ? parseAtom(feedEl) : parseRSS2(channelEl)
+}
+```
+
+#### 4. AI 筛选功能
+
+订阅源支持基于自然语言的智能筛选：
+
+```typescript
+interface Feed {
+  id: string
+  title: string
+  url: string
+  category?: string
+  aiFilter?: string  // AI 筛选规则（自然语言描述）
+}
+
+// 示例：Hacker News 订阅源配置
+{
+  url: 'https://hnrss.org/frontpage',
+  title: 'Hacker News',
+  category: 'AI 前沿',
+  aiFilter: '只保留与 AI、机器学习、LLM、GPT、深度学习相关的内容'
+}
+
+// AI 批量筛选文章
+async function filterArticlesBatch(
+  articles: Array<{ id: string; title: string }>,
+  filterRule: string
+): Promise<Set<string>> {
+  // 调用 AI 判断每篇文章是否符合规则
+  // 返回保留的文章 ID 集合
 }
 ```
 
@@ -81,35 +119,59 @@ async function fetchFeed(feedUrl: string) {
 
 ### 问题二：国产 AI (SiliconFlow) 如何调用？
 
-> **核心优势**：SiliconFlow 完全兼容 OpenAI API 格式
+> **核心优势**：SiliconFlow 完全兼容 OpenAI API 格式，用户可自定义配置
 
-#### 1. API 配置
+#### 1. 用户自定义配置
+
+用户可在应用内配置 AI 服务：
+
+- **配置界面**：应用内提供 AI 设置弹窗（AISettings 组件）
+- **配置项**：API Base URL、API Key、默认模型
+- **存储**：配置保存到 localStorage
+- **优先级**：用户设置 > 环境变量 > 默认值
 
 ```typescript
-// SiliconFlow API 配置
-const AI_CONFIG = {
-  baseUrl: 'https://api.siliconflow.cn/v1',
-  apiKey: import.meta.env.VITE_SILICONFLOW_API_KEY,
-  model: 'Qwen/Qwen2.5-7B-Instruct', // 或其他模型
-};
+// 配置管理
+const AI_CONFIG_KEY = 'folo_ai_config'
+
+interface AIConfigData {
+  baseUrl: string
+  apiKey: string
+}
+
+// 获取配置（按优先级）
+function getAIConfig(): AIConfigData {
+  // 1. 从 localStorage 读取用户设置
+  const saved = localStorage.getItem(AI_CONFIG_KEY)
+  if (saved) return JSON.parse(saved)
+  
+  // 2. 使用环境变量
+  return {
+    baseUrl: DEFAULT_AI_CONFIG.baseUrl,
+    apiKey: import.meta.env.VITE_SILICONFLOW_API_KEY || '',
+  }
+}
 ```
 
 #### 2. 调用方式
 
 ```typescript
-// 使用 OpenAI SDK（推荐）
-import OpenAI from 'openai';
+// 使用 OpenAI SDK
+import OpenAI from 'openai'
 
 const client = new OpenAI({
-  baseURL: AI_CONFIG.baseUrl,
-  apiKey: AI_CONFIG.apiKey,
+  baseURL: getAIConfig().baseUrl,
+  apiKey: getAIConfig().apiKey,
   dangerouslyAllowBrowser: true, // 纯前端使用
-});
+})
 
 // 生成摘要
-async function generateSummary(content: string): Promise<string> {
+async function generateSummary(
+  content: string,
+  model: string = DEFAULT_MODEL
+): Promise<string> {
   const response = await client.chat.completions.create({
-    model: AI_CONFIG.model,
+    model,
     messages: [
       {
         role: 'system',
@@ -121,25 +183,307 @@ async function generateSummary(content: string): Promise<string> {
       }
     ],
     max_tokens: 500,
-  });
+  })
   
-  return response.choices[0].message.content || '';
+  return response.choices[0].message.content || ''
 }
 ```
 
 #### 3. 可用模型列表
 
-| 模型 | 特点 | 推荐用途 |
-|------|------|----------|
-| Qwen/Qwen2.5-7B-Instruct | 平衡性能与成本 | 日常摘要 |
-| Qwen/Qwen2.5-72B-Instruct | 能力最强 | 复杂分析 |
-| deepseek-ai/DeepSeek-V2.5 | 推理能力强 | 翻译 |
+应用支持多个 AI 模型，用户可在对话时自由切换：
 
-#### 4. 费用考量
+```typescript
+export const AI_MODELS = {
+    recommended: [
+        { id: 'Pro/deepseek-ai/DeepSeek-V3.2', name: 'DeepSeek V3.2（推荐）' },
+        { id: 'Pro/Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B' },
+    ],
+    advanced: [
+        { id: 'Qwen/Qwen3-VL-32B-Thinking', name: 'Qwen 3 Thinking' },
+        { id: 'Pro/deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1' }
+    ]
+}
+
+export const DEFAULT_MODEL = 'Pro/deepseek-ai/DeepSeek-V3.2'
+```
+
+#### 4. AI 对话功能
+
+基于当前文章内容的持续对话：
+
+```typescript
+// 流式对话
+async function chatWithAIStream(
+  userMessage: string,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>,
+  articleTitle: string,
+  articleContent: string,
+  onChunk: (chunk: string) => void,
+  model: string = DEFAULT_MODEL
+): Promise<void> {
+  const stream = await client.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: 'system',
+        content: `你正在与用户讨论以下文章：\n\n标题：${articleTitle}\n\n内容：${articleContent}\n\n请基于文章内容回答用户的问题。`
+      },
+      ...history,
+      { role: 'user', content: userMessage }
+    ],
+    stream: true,
+  })
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content || ''
+    if (content) onChunk(content)
+  }
+}
+```
+
+#### 5. 费用考量
 
 - SiliconFlow 提供免费额度
 - 轻量使用场景成本极低
-- 建议本地缓存已生成的摘要
+- 本地缓存已生成的摘要避免重复调用
+
+---
+
+### 问题三：四栏布局如何实现？
+
+> **核心理念**：灵活可调整的四栏布局，提供沉浸式阅读体验
+
+#### 1. 布局设计
+
+```
+┌──────────┬─────────────┬────────────────┬────────────┐
+│ 订阅源   │ 文章列表     │ 阅读详情        │ AI对话     │
+│ Sidebar  │ FeedList    │ ArticleView    │ AIChat     │
+│ (可调)   │ (可调)       │ (自适应)        │ (可调)     │
+│ 180-360px│ 280-480px   │ flex-1         │ 300-500px  │
+└──────────┴─────────────┴────────────────┴────────────┘
+```
+
+**布局特点**：
+- 每个面板可独立展开/收缩
+- 支持拖拽调整宽度（除阅读详情区）
+- 布局状态持久化到 localStorage
+- 收缩后显示为 48px 宽的图标栏
+
+#### 2. ResizablePanel 组件
+
+```typescript
+interface ResizablePanelProps {
+  width: number
+  minWidth: number
+  maxWidth: number
+  onResize: (width: number) => void
+  showHandle?: boolean
+  handlePosition?: 'left' | 'right'
+  className?: string
+  children: React.ReactNode
+}
+
+/**
+ * 可调整大小的面板组件
+ * - 拖拽手柄调整宽度
+ * - 宽度限制
+ * - 拖动时高亮显示
+ */
+function ResizablePanel({ width, minWidth, maxWidth, onResize, ... }: ResizablePanelProps) {
+  const [isResizing, setIsResizing] = useState(false)
+  
+  const handleMouseDown = () => setIsResizing(true)
+  
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizing) return
+    const newWidth = Math.max(minWidth, Math.min(maxWidth, /* 计算宽度 */))
+    onResize(newWidth)
+  }
+  
+  return (
+    <div style={{ width: `${width}px` }}>
+      {children}
+      {showHandle && (
+        <div 
+          onMouseDown={handleMouseDown}
+          className="resize-handle"
+        />
+      )}
+    </div>
+  )
+}
+```
+
+#### 3. 布局状态管理
+
+```typescript
+const STORAGE_KEY = 'folo-panel-layout'
+
+// 默认布局配置
+const DEFAULT_LAYOUT = {
+  sidebar: { expanded: true, width: 240 },
+  feedList: { expanded: true, width: 380 },
+  aiChat: { expanded: false, width: 360 },
+}
+
+// 从 localStorage 恢复或使用默认值
+const [layout, setLayout] = useState(() => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    return saved ? JSON.parse(saved) : DEFAULT_LAYOUT
+  } catch {
+    return DEFAULT_LAYOUT
+  }
+})
+
+// 持久化布局
+useEffect(() => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(layout))
+}, [layout])
+```
+
+#### 4. 交互优化
+
+- **展开/收缩动画**：平滑过渡
+- **拖拽手柄高亮**：拖动时显示橙色高亮（`bg-orange-500`）
+- **AI 对话入口**：阅读文章时，右下角显示悬浮按钮呼出 AI 对话
+- **响应式设计**：阅读详情区自适应剩余空间（`flex-1`）
+
+---
+
+## AI 功能详解
+
+### 1. 智能摘要
+
+**核心功能**：
+- 自动为新获取的文章生成中文摘要
+- 摘要长度控制在 200 字以内
+- 缓存到 IndexedDB 避免重复调用
+
+**实现**：
+```typescript
+// 更新文章 AI 摘要
+async updateAISummary(articleId: string, summary: string): Promise<void> {
+  await db.articles.update(articleId, {
+    aiSummary: summary,
+    summaryGeneratedAt: Date.now(),
+  })
+}
+```
+
+**生成时机**：
+- 刷新订阅源后，异步为新文章生成摘要
+- 用户可选择不同模型重新生成
+
+### 2. AI 对话
+
+**核心功能**：
+- 基于当前阅读的文章内容进行多轮对话
+- 支持流式响应（逐字显示）
+- 对话历史管理
+- 可自由切换 AI 模型
+
+**UI 设计**：
+- 侧边栏形式（第四栏）
+- 消息气泡样式（用户/AI 区分）
+- 实时 Markdown 渲染
+- 加载状态显示
+
+**关键特性**：
+```typescript
+// AI 会读取当前文章作为上下文
+const systemPrompt = `你正在与用户讨论以下文章：
+
+标题：${articleTitle}
+
+内容：${articleContent}
+
+请基于文章内容回答用户的问题。`
+```
+
+### 3. AI 筛选
+
+**核心功能**：
+- 基于自然语言规则筛选文章
+- 订阅源级别配置筛选规则
+- 批量筛选优化性能
+
+**工作流程**：
+1. 用户为订阅源配置筛选规则（如："只保留与 AI 相关的内容"）
+2. 刷新订阅源时，批量调用 AI 判断文章是否符合规则
+3. 只展示符合规则的文章
+
+**性能优化**：
+- 批量调用 AI（一次处理多篇文章）
+- 基于标题判断（不需要全文）
+- 结果缓存
+
+### 4. 用户自定义配置
+
+**配置项**：
+- API Base URL
+- API Key
+- 默认模型
+
+**配置界面**：
+- AI 设置弹窗（AISettings 组件）
+- 表单验证
+- 重置为默认配置
+
+**配置存储**：
+- localStorage（`folo_ai_config`）
+- 优先级：用户设置 > 环境变量 > 默认值
+
+---
+
+## 预设订阅源
+
+应用内置丰富的预设订阅源（`config/presetFeeds.ts`），涵盖 8 大分类：
+
+### 分类体系
+
+| 分类 | 订阅源数量 | 示例 |
+|------|-----------|------|
+| 🤖 AI 前沿 | 5 | Hacker News、MIT 科技评论、DeepMind Blog、AI Weekly、AIGC Weekly |
+| 📱 科技资讯 | 5 | 少数派、阮一峰的网络日志、Solidot、掘金前端、V2EX |
+| ⚽ 足球资讯 | 2 | 懂球帝、虎扑足球 |
+| 💰 财经经济 | 2 | 财新网、第一财经 |
+| 🧠 心理学 | 2 | 壹心理、心理学空间 |
+| 📚 书籍推荐 | 2 | 豆瓣读书、理想国图书 |
+| 🔓 开源项目 | 2 | GitHub Trending、HelloGitHub |
+| 📰 综合新闻 | 2 | 知乎热榜、36氪快讯 |
+
+### 一键加载机制
+
+```typescript
+// 用户可一键加载所有预设订阅源
+async function handleLoadPresets() {
+  for (const preset of PRESET_FEEDS) {
+    await dbHelpers.addFeed({
+      title: preset.title,
+      url: preset.url,
+      category: preset.category,
+      description: preset.description,
+      aiFilter: preset.aiFilter,
+    })
+  }
+}
+```
+
+### AI 筛选规则示例
+
+部分订阅源预配置了 AI 筛选规则：
+
+```typescript
+{
+  url: 'https://hnrss.org/frontpage',
+  title: 'Hacker News',
+  category: 'AI 前沿',
+  aiFilter: '只保留与 AI、机器学习、LLM、GPT、深度学习、OpenAI、Anthropic、Google AI 相关的内容',
+}
+```
 
 ---
 
@@ -149,29 +493,255 @@ async function generateSummary(content: string): Promise<string> {
 folo-rebuild/
 ├── doc/                    # 文档
 │   ├── requirement.md     # 需求文档
-│   └── spec.md            # 技术规范
+│   └── spec.md            # 技术规范（本文档）
 ├── src/
 │   ├── main.tsx           # 入口
-│   ├── App.tsx            # 主组件
+│   ├── App.tsx            # 主组件（四栏布局）
 │   ├── components/        # UI 组件
-│   ├── stores/            # 状态管理
-│   ├── services/          # 业务服务
-│   │   ├── rss.ts         # RSS 解析
-│   │   └── ai.ts          # AI 调用
-│   ├── db/                # 数据库
-│   └── types/             # 类型定义
+│   │   ├── Sidebar.tsx           # 侧边栏（订阅源列表、分类管理）
+│   │   ├── FeedList.tsx          # 文章列表（AI 摘要卡片）
+│   │   ├── ArticleView.tsx       # 文章详情（阅读视图）
+│   │   ├── AIChat.tsx            # AI 对话侧边栏
+│   │   ├── AISettings.tsx        # AI 设置弹窗
+│   │   └── ResizablePanel.tsx    # 可调整大小的面板
+│   ├── config/
+│   │   └── presetFeeds.ts  # 预设订阅源配置
+│   ├── db/
+│   │   └── index.ts        # IndexedDB 数据库（Dexie.js）
+│   ├── services/
+│   │   ├── ai.ts           # AI 服务（摘要/对话/筛选）
+│   │   └── rss.ts          # RSS 解析服务（原生 DOMParser）
+│   ├── stores/
+│   │   └── feedStore.ts    # Zustand 状态管理
+│   ├── types/
+│   │   └── index.ts        # TypeScript 类型定义
+│   ├── index.css           # 全局样式
+│   └── vite-env.d.ts
 ├── .env.example           # 环境变量示例
 ├── package.json
-└── vite.config.ts
+├── tailwind.config.js     # TailwindCSS 配置
+├── postcss.config.js      # PostCSS 配置
+├── tsconfig.json          # TypeScript 配置
+└── vite.config.ts         # Vite 配置
 ```
+
+---
+
+## 数据库设计
+
+使用 Dexie.js（IndexedDB 封装）存储数据：
+
+```typescript
+class FoloDatabase extends Dexie {
+  feeds: Table<Feed>
+  articles: Table<Article>
+  starredArticles: Table<StarredArticle>
+  settings: Table<{ key: string; value: unknown }>
+
+  constructor() {
+    super('folo-minimal')
+    
+    this.version(3).stores({
+      // 订阅源表：url 为唯一索引
+      feeds: 'id, title, category, &url, createdAt',
+      
+      // 文章表：支持按订阅源、时间、阅读状态查询
+      articles: 'id, feedId, pubDate, isRead, isStarred',
+      
+      // 收藏文章表（包含原文）
+      starredArticles: 'id, feedId, starredAt',
+      
+      // 设置表
+      settings: 'key',
+    })
+  }
+}
+```
+
+**表结构**：
+
+| 表名 | 说明 | 索引 |
+|------|------|------|
+| `feeds` | 订阅源 | id, title, category, &url（唯一）, createdAt |
+| `articles` | 文章元数据 | id, feedId, pubDate, isRead, isStarred |
+| `starredArticles` | 收藏的文章（含原文） | id, feedId, starredAt |
+| `settings` | 应用设置 | key |
+
+---
+
+## UI 组件说明
+
+### 1. App.tsx - 主应用组件
+
+**职责**：
+- 管理四栏布局
+- 处理面板展开/收缩
+- 处理面板宽度调整
+- 布局状态持久化
+
+**状态管理**：
+```typescript
+const [layout, setLayout] = useState({
+  sidebar: { expanded: true, width: 240 },
+  feedList: { expanded: true, width: 380 },
+  aiChat: { expanded: false, width: 360 },
+})
+```
+
+### 2. Sidebar.tsx - 订阅源列表
+
+**功能**：
+- 订阅源分类展示
+- 添加/删除订阅源
+- 刷新订阅源
+- 一键加载预设订阅源
+- 分类折叠管理
+- AI 设置入口
+
+**交互**：
+- 点击订阅源切换显示的文章列表
+- 支持展开/收缩
+
+### 3. FeedList.tsx - 文章列表
+
+**功能**：
+- 显示当前订阅源的文章列表
+- 展示 AI 摘要卡片
+- 标记已读/未读
+- 收藏文章
+
+**卡片设计**：
+```
+┌─────────────────────────────────────┐
+│  📰 文章标题              2小时前   │
+│  AI: 这篇文章主要讲述了...          │
+│  [标记已读] [收藏]                  │
+└─────────────────────────────────────┘
+```
+
+### 4. ArticleView.tsx - 文章详情
+
+**功能**：
+- 实时获取并渲染文章全文
+- 自动标记已读
+- 收藏/取消收藏
+- 翻译功能（可选）
+
+**渲染方式**：
+- 使用 `dangerouslySetInnerHTML` 渲染 HTML
+- 样式优化（文章内容区域）
+
+### 5. AIChat.tsx - AI 对话
+
+**功能**：
+- 基于当前文章的 AI 对话
+- 流式响应显示
+- 对话历史管理
+- 模型选择
+- 清空对话
+
+**UI 特点**：
+- 消息气泡样式
+- 用户消息右对齐，AI 消息左对齐
+- Markdown 渲染（代码高亮等）
+- 加载动画
+
+### 6. AISettings.tsx - AI 配置
+
+**功能**：
+- 配置 API Base URL
+- 配置 API Key
+- 验证配置
+- 重置为默认值
+
+**表单验证**：
+- URL 格式验证
+- API Key 非空验证
+
+### 7. ResizablePanel.tsx - 可调整面板
+
+**功能**：
+- 拖拽调整宽度
+- 宽度限制（min/max）
+- 拖动时高亮
+- 左/右拖拽手柄
+
+**实现要点**：
+- 监听 `mousedown`、`mousemove`、`mouseup` 事件
+- 计算并限制宽度范围
+- 通过回调通知父组件
 
 ---
 
 ## 环境变量
 
+| 变量名 | 说明 | 是否必需 |
+|--------|------|----------|
+| `VITE_SILICONFLOW_API_KEY` | SiliconFlow API Key | 可选（可在应用内配置） |
+
+**配置方式**：
+
+1. **环境变量**（`.env` 文件）：
 ```bash
-# .env
 VITE_SILICONFLOW_API_KEY=your_api_key_here
 ```
 
-> ⚠️ **安全提示**：API Key 仅在本地使用，不要提交到代码仓库
+2. **应用内配置**（推荐）：
+   - 点击侧边栏的 ⚙️ 设置图标
+   - 在 AI 设置弹窗中填写配置
+   - 保存到 localStorage
+
+**优先级**：应用内配置 > 环境变量 > 默认值
+
+---
+
+## 获取 API Key
+
+1. 访问 https://siliconflow.cn
+2. 注册账号并登录
+3. 在控制台创建 API Key
+4. 填入 `.env` 文件或在应用内 **AI 设置** 中配置
+
+---
+
+## 开发指南
+
+### 启动项目
+
+```bash
+# 安装依赖
+pnpm install
+
+# 启动开发服务器
+pnpm dev
+```
+
+### 构建生产版本
+
+```bash
+pnpm build
+```
+
+### 类型检查
+
+```bash
+pnpm type-check
+```
+
+---
+
+## 技术亮点
+
+1. **纯前端实现**：无需后端服务器，数据存储在浏览器 IndexedDB
+2. **原生 RSS 解析**：使用 DOMParser 替代 rss-parser，避免 Node.js 依赖
+3. **多代理轮询**：RSS 获取失败时自动尝试多个 CORS 代理
+4. **AI 功能丰富**：摘要、对话、筛选三大核心能力
+5. **灵活布局**：四栏可调整布局，沉浸式阅读体验
+6. **用户友好**：预设订阅源、一键加载、AI 配置界面
+7. **性能优化**：摘要缓存、批量筛选、虚拟滚动（可扩展）
+
+---
+
+## License
+
+MIT

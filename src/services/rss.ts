@@ -34,22 +34,69 @@ export interface FeedItem {
  */
 async function fetchWithProxy(url: string): Promise<string> {
     let lastError: Error | null = null
+    const errors: string[] = []
 
-    for (const proxy of CORS_PROXIES) {
+    // 首先尝试直接访问（某些RSS源支持CORS）
+    try {
+        console.log(`[RSS] 尝试直接访问: ${url}`)
+        const response = await fetch(url, {
+            headers: { 'Accept': 'application/rss+xml, application/xml, text/xml' }
+        })
+        if (response.ok) {
+            const text = await response.text()
+            if (text && text.trim().length > 0) {
+                console.log(`[RSS] 直接访问成功`)
+                return text
+            }
+            errors.push(`直接访问返回空内容`)
+        } else {
+            errors.push(`直接访问失败: ${response.status} ${response.statusText}`)
+        }
+    } catch (err) {
+        errors.push(`直接访问异常: ${(err as Error).message}`)
+    }
+
+    // 尝试使用代理
+    for (let i = 0; i < CORS_PROXIES.length; i++) {
+        const proxy = CORS_PROXIES[i]
         try {
-            const response = await fetch(proxy + encodeURIComponent(url), {
+            const proxyUrl = proxy + encodeURIComponent(url)
+            console.log(`[RSS] 尝试代理 ${i + 1}/${CORS_PROXIES.length}: ${proxy}`)
+
+            const response = await fetch(proxyUrl, {
                 headers: { 'Accept': 'application/rss+xml, application/xml, text/xml' }
             })
+
             if (response.ok) {
-                return await response.text()
+                const text = await response.text()
+
+                // 验证响应内容不为空
+                if (!text || text.trim().length === 0) {
+                    errors.push(`代理 ${i + 1} 返回空内容`)
+                    continue
+                }
+
+                // 验证响应内容看起来像XML
+                if (!text.trim().startsWith('<')) {
+                    errors.push(`代理 ${i + 1} 返回非XML内容: ${text.substring(0, 100)}`)
+                    continue
+                }
+
+                console.log(`[RSS] 代理 ${i + 1} 成功`)
+                return text
+            } else {
+                errors.push(`代理 ${i + 1} HTTP错误: ${response.status}`)
             }
         } catch (err) {
             lastError = err as Error
+            errors.push(`代理 ${i + 1} 异常: ${lastError.message}`)
             continue
         }
     }
 
-    throw lastError || new Error('所有代理均失败')
+    // 所有尝试都失败，提供详细错误信息
+    const errorDetails = errors.join('; ')
+    throw new Error(`无法获取RSS内容：${errorDetails}`)
 }
 
 /**

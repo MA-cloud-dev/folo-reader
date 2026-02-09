@@ -61,10 +61,19 @@ export const dbHelpers = {
 
     /** 删除订阅源及其文章 */
     async deleteFeed(feedId: string): Promise<void> {
-        await db.transaction('rw', [db.feeds, db.articles], async () => {
-            await db.feeds.delete(feedId)
-            await db.articles.where('feedId').equals(feedId).delete()
-        })
+        console.log(`[DB] Starting to delete feed: ${feedId}`)
+        try {
+            await db.transaction('rw', [db.feeds, db.articles], async () => {
+                console.log(`[DB] Deleting feed from feeds table...`)
+                await db.feeds.delete(feedId)
+                console.log(`[DB] Deleting articles for feed...`)
+                await db.articles.where('feedId').equals(feedId).delete()
+                console.log(`[DB] Deletion completed successfully`)
+            })
+        } catch (error) {
+            console.error(`[DB] Error deleting feed:`, error)
+            throw error
+        }
     },
 
     /** 添加或更新文章 */

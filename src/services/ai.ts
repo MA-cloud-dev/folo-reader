@@ -292,7 +292,7 @@ export async function filterArticleByAI(
         const client = getAIClient()
 
         const response = await client.chat.completions.create({
-            model: getCurrentModel(),
+            model: DEFAULT_MODEL,
             messages: [
                 {
                     role: 'system',
@@ -335,7 +335,7 @@ export async function filterArticlesBatch(
         const titlesText = articles.map((a, i) => `${i + 1}. ${a.title}`).join('\n')
 
         const response = await client.chat.completions.create({
-            model: getCurrentModel(),
+            model: DEFAULT_MODEL,
             messages: [
                 {
                     role: 'system',

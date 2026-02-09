@@ -7,7 +7,7 @@ import type { Feed, Article } from '@/types'
 import { db, dbHelpers } from '@/db'
 import { fetchFeed } from '@/services/rss'
 import { generateSummary, filterArticlesBatch, isAIConfigured } from '@/services/ai'
-import { PRESET_FEEDS, hasInitializedPresets, markPresetsInitialized } from '@/config/presetFeeds'
+import { PRESET_FEEDS } from '@/config/presetFeeds'
 
 interface FeedState {
     // 数据
@@ -26,7 +26,7 @@ interface FeedState {
 
     // Actions
     loadFeeds: () => Promise<void>
-    initPresetFeeds: () => Promise<void>
+    initPresetFeeds: () => Promise<{ addedCount: number; skippedCount: number }>
     addFeed: (url: string, title?: string, category?: string, aiFilter?: string) => Promise<void>
     deleteFeed: (feedId: string) => Promise<void>
     selectFeed: (feed: Feed | null) => void
@@ -55,11 +55,6 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     loadFeeds: async () => {
         set({ isLoading: true, error: null })
         try {
-            // 首次加载时初始化预设订阅源
-            if (!hasInitializedPresets()) {
-                await get().initPresetFeeds()
-            }
-
             const feeds = await dbHelpers.getAllFeeds()
             set({ feeds, isLoading: false })
         } catch (err) {
@@ -68,11 +63,24 @@ export const useFeedStore = create<FeedState>((set, get) => ({
         }
     },
 
-    // 初始化预设订阅源
+    // 初始化预设订阅源（用户手动触发）
     initPresetFeeds: async () => {
         console.log('Initializing preset feeds...')
+        let addedCount = 0
+        let skippedCount = 0
+
         for (const preset of PRESET_FEEDS) {
             try {
+                // 检查是否已存在该 URL 的订阅源
+                const existingFeeds = get().feeds
+                const exists = existingFeeds.some(f => f.url === preset.url)
+
+                if (exists) {
+                    console.log(`Skipped preset feed (already exists): ${preset.title}`)
+                    skippedCount++
+                    continue
+                }
+
                 const feedData = await fetchFeed(preset.url)
 
                 await dbHelpers.addFeed({
@@ -85,20 +93,31 @@ export const useFeedStore = create<FeedState>((set, get) => ({
                     favicon: feedData.image?.url,
                 })
 
+                addedCount++
                 console.log(`Added preset feed: ${preset.title}`)
             } catch (err) {
                 console.error(`Failed to add preset feed ${preset.title}:`, err)
                 // 即使抓取失败也添加，后续可以手动刷新
-                await dbHelpers.addFeed({
-                    title: preset.title,
-                    url: preset.url,
-                    category: preset.category,
-                    description: preset.description,
-                    aiFilter: preset.aiFilter,
-                })
+                try {
+                    await dbHelpers.addFeed({
+                        title: preset.title,
+                        url: preset.url,
+                        category: preset.category,
+                        description: preset.description,
+                        aiFilter: preset.aiFilter,
+                    })
+                    addedCount++
+                } catch (dbErr) {
+                    console.error(`Failed to add fallback feed ${preset.title}:`, dbErr)
+                }
             }
         }
-        markPresetsInitialized()
+
+        // 重新加载订阅源列表
+        await get().loadFeeds()
+
+        console.log(`Preset feeds initialization complete: ${addedCount} added, ${skippedCount} skipped`)
+        return { addedCount, skippedCount }
     },
 
     // 添加订阅源
@@ -132,7 +151,17 @@ export const useFeedStore = create<FeedState>((set, get) => ({
             await get().loadFeeds()
             set({ isLoading: false })
         } catch (err) {
-            set({ error: '添加订阅源失败，请检查 URL 是否正确', isLoading: false })
+            const errorMsg = err instanceof Error ? err.message : '未知错误'
+            set({
+                error: '添加订阅源失败\n\n' +
+                    `错误详情：${errorMsg}\n\n` +
+                    '可能原因：\n' +
+                    '• 该网站不支持 RSS 或已停止服务\n' +
+                    '• URL 格式不正确\n' +
+                    '• 网络连接问题\n\n' +
+                    '建议：某些网站（如知乎、微博）需要使用 RSSHub 等服务访问',
+                isLoading: false
+            })
             console.error('Failed to add feed:', err)
             throw err
         }
@@ -140,15 +169,19 @@ export const useFeedStore = create<FeedState>((set, get) => ({
 
     // 删除订阅源
     deleteFeed: async (feedId: string) => {
+        console.log(`[FeedStore] Deleting feed: ${feedId}`)
         try {
             await dbHelpers.deleteFeed(feedId)
+            console.log(`[FeedStore] Feed deleted from DB, updating UI...`)
             const { selectedFeed } = get()
             if (selectedFeed?.id === feedId) {
                 set({ selectedFeed: null, articles: [], selectedArticle: null })
             }
             await get().loadFeeds()
+            console.log(`[FeedStore] Feeds reloaded successfully`)
         } catch (err) {
-            console.error('Failed to delete feed:', err)
+            console.error('[FeedStore] Failed to delete feed:', err)
+            throw err
         }
     },
 

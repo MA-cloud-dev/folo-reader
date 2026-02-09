@@ -2,7 +2,7 @@
  * 侧边栏组件 - 订阅源列表
  */
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Trash2, Rss, ChevronRight, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Rss, ChevronRight, Settings, PanelLeftClose, PanelLeftOpen, Download, ChevronsUpDown } from 'lucide-react'
 import { useFeedStore } from '@/stores/feedStore'
 import { clsx } from 'clsx'
 import { AISettings } from './AISettings'
@@ -30,11 +30,27 @@ export function Sidebar({ isExpanded, onToggle }: SidebarProps) {
     const [newFeedUrl, setNewFeedUrl] = useState('')
     const [newFeedTitle, setNewFeedTitle] = useState('')
     const [isAdding, setIsAdding] = useState(false)
+    const [isLoadingPresets, setIsLoadingPresets] = useState(false)
+
+    // 分类折叠状态（localStorage 持久化）
+    const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => {
+        try {
+            const saved = localStorage.getItem('folo_collapsed_categories')
+            return saved ? new Set(JSON.parse(saved)) : new Set()
+        } catch {
+            return new Set()
+        }
+    })
 
     // 初始加载
     useEffect(() => {
         loadFeeds()
     }, [loadFeeds])
+
+    // 持久化折叠状态
+    useEffect(() => {
+        localStorage.setItem('folo_collapsed_categories', JSON.stringify([...collapsedCategories]))
+    }, [collapsedCategories])
 
     // 添加订阅源
     const handleAddFeed = async () => {
@@ -51,6 +67,50 @@ export function Sidebar({ isExpanded, onToggle }: SidebarProps) {
             alert('添加订阅源失败,请检查 URL 是否正确')
         } finally {
             setIsAdding(false)
+        }
+    }
+
+    // 一键加载预设订阅源
+    const handleLoadPresets = async () => {
+        const confirmed = window.confirm(
+            '即将加载预设信息源（共22个），已存在的源将自动跳过。\n\n包括：AI前沿、科技资讯、足球资讯、财经经济、心理学、书籍推荐、开源项目、综合新闻等分类。\n\n确定继续？'
+        )
+        if (!confirmed) return
+
+        setIsLoadingPresets(true)
+        try {
+            const result = await useFeedStore.getState().initPresetFeeds()
+            alert(`加载完成！\n\n新增: ${result.addedCount} 个\n跳过: ${result.skippedCount} 个（已存在）`)
+        } catch (err) {
+            console.error('Failed to load presets:', err)
+            alert('加载预设源失败，请稍后重试')
+        } finally {
+            setIsLoadingPresets(false)
+        }
+    }
+
+    // 切换单个分类折叠状态
+    const toggleCategory = (category: string) => {
+        setCollapsedCategories(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(category)) {
+                newSet.delete(category)
+            } else {
+                newSet.add(category)
+            }
+            return newSet
+        })
+    }
+
+    // 一键折叠/展开所有分类
+    const toggleAllCategories = () => {
+        const allCategories = Object.keys(groupedFeeds)
+        const allCollapsed = allCategories.every(cat => collapsedCategories.has(cat))
+
+        if (allCollapsed) {
+            setCollapsedCategories(new Set()) // 全部展开
+        } else {
+            setCollapsedCategories(new Set(allCategories)) // 全部折叠
         }
     }
 
@@ -102,6 +162,21 @@ export function Sidebar({ isExpanded, onToggle }: SidebarProps) {
                 <h1 className="text-lg font-semibold text-slate-800">Folo</h1>
                 <div className="flex gap-1">
                     <button
+                        onClick={toggleAllCategories}
+                        className="btn-ghost p-2"
+                        title={Object.keys(groupedFeeds).every(cat => collapsedCategories.has(cat)) ? '展开全部' : '折叠全部'}
+                    >
+                        <ChevronsUpDown size={18} />
+                    </button>
+                    <button
+                        onClick={handleLoadPresets}
+                        disabled={isLoadingPresets}
+                        className="btn-ghost p-2"
+                        title="加载预设源"
+                    >
+                        <Download size={18} className={clsx(isLoadingPresets && 'animate-pulse')} />
+                    </button>
+                    <button
                         onClick={() => refreshAllFeeds()}
                         disabled={isFetchingFeed}
                         className="btn-ghost p-2"
@@ -149,11 +224,21 @@ export function Sidebar({ isExpanded, onToggle }: SidebarProps) {
                 ) : (
                     Object.entries(groupedFeeds).map(([category, categoryFeeds]) => (
                         <div key={category} className="mb-4">
-                            <div className="flex items-center gap-1 px-2 py-1 text-xs text-slate-400 uppercase tracking-wider">
-                                <ChevronRight size={14} />
+                            <div
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 transition-colors"
+                                onClick={() => toggleCategory(category)}
+                            >
+                                <ChevronRight
+                                    size={14}
+                                    className={clsx(
+                                        'transition-transform',
+                                        !collapsedCategories.has(category) && 'rotate-90'
+                                    )}
+                                />
                                 {category}
+                                <span className="text-xs ml-auto opacity-60">({categoryFeeds.length})</span>
                             </div>
-                            {categoryFeeds.map((feed) => (
+                            {!collapsedCategories.has(category) && categoryFeeds.map((feed) => (
                                 <div
                                     key={feed.id}
                                     className={clsx(
