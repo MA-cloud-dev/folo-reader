@@ -8,7 +8,7 @@ import { fetchArticleContent, extractTextFromHtml } from '@/services/rss'
 import { clsx } from 'clsx'
 
 export function ArticleView() {
-    const { selectedArticle, starArticle, generateArticleSummary, generatingSummaryIds } = useFeedStore()
+    const { selectedArticle, starArticle, unstarArticle, generateArticleSummary, generatingSummaryIds } = useFeedStore()
     const [content, setContent] = useState<string>('')
     const [isLoading, setIsLoading] = useState(false)
     const [showContent, setShowContent] = useState(false)
@@ -42,6 +42,13 @@ export function ArticleView() {
     const handleStar = async () => {
         if (!selectedArticle) return
 
+        // 如果已收藏，则取消收藏
+        if (selectedArticle.isStarred) {
+            await unstarArticle(selectedArticle.id)
+            return
+        }
+
+        // 否则收藏文章
         let articleContent = content
         if (!articleContent) {
             try {

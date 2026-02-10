@@ -2,7 +2,7 @@
  * 侧边栏组件 - 订阅源列表
  */
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Trash2, Rss, ChevronRight, Settings, PanelLeftClose, PanelLeftOpen, Download, ChevronsUpDown } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Rss, ChevronRight, Settings, PanelLeftClose, PanelLeftOpen, Download, ChevronsUpDown, Star, FileText } from 'lucide-react'
 import { useFeedStore } from '@/stores/feedStore'
 import { clsx } from 'clsx'
 import { AISettings } from './AISettings'
@@ -10,9 +10,13 @@ import { AISettings } from './AISettings'
 interface SidebarProps {
     isExpanded: boolean
     onToggle: () => void
+    activeView?: 'feed' | 'collection'
+    onViewChange?: (view: 'feed' | 'collection') => void
+    onNotePanelToggle?: () => void
+    isNotePanelExpanded?: boolean  // 新增：笔记面板是否展开
 }
 
-export function Sidebar({ isExpanded, onToggle }: SidebarProps) {
+export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChange, onNotePanelToggle, isNotePanelExpanded = false }: SidebarProps) {
     const {
         feeds,
         selectedFeed,
@@ -247,7 +251,10 @@ export function Sidebar({ isExpanded, onToggle }: SidebarProps) {
                                             ? 'bg-orange-500 text-white'
                                             : 'hover:bg-slate-100 text-slate-700'
                                     )}
-                                    onClick={() => selectFeed(feed)}
+                                    onClick={() => {
+                                        selectFeed(feed)
+                                        onViewChange?.('feed')
+                                    }}
                                 >
                                     {feed.favicon ? (
                                         <img
@@ -286,8 +293,39 @@ export function Sidebar({ isExpanded, onToggle }: SidebarProps) {
                 )}
             </div>
 
-            {/* 底部设置按钮 */}
-            <div className="p-3 border-t border-slate-200">
+            {/* 收藏和笔记按钮 */}
+            <div className="flex-shrink-0 p-2 space-y-1 border-t border-slate-200">
+                <button
+                    onClick={() => {
+                        // 如果已经在collection视图，切换回feed
+                        if (activeView === 'collection') {
+                            onViewChange?.('feed')
+                        } else {
+                            onViewChange?.('collection')
+                        }
+                    }}
+                    className={clsx(
+                        'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+                        activeView === 'collection'
+                            ? 'bg-orange-500 text-white'
+                            : 'hover:bg-slate-100 text-slate-700'
+                    )}
+                >
+                    <Star size={18} />
+                    我的收藏
+                </button>
+                <button
+                    onClick={() => onNotePanelToggle?.()}
+                    className={clsx(
+                        'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+                        isNotePanelExpanded
+                            ? 'bg-orange-500 text-white'  // active状态
+                            : 'hover:bg-slate-100 text-slate-700'
+                    )}
+                >
+                    <FileText size={16} />
+                    我的笔记
+                </button>
                 <button
                     onClick={() => setShowSettings(true)}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors text-sm"

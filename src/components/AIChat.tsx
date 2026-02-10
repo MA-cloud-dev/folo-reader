@@ -3,10 +3,11 @@
  * 可以读取当前文章内容，与 AI 进行持续对话
  */
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, X, MessageSquare, Loader2, Trash2 } from 'lucide-react'
+import { Send, Bot, User, X, MessageSquare, Loader2, Trash2, Star } from 'lucide-react'
 import { useFeedStore } from '@/stores/feedStore'
 import { chatWithAIStream, isAIConfigured, AI_MODELS, DEFAULT_MODEL } from '@/services/ai'
 import { fetchArticleContent, extractTextFromHtml } from '@/services/rss'
+import { db, dbHelpers } from '@/db'
 import { clsx } from 'clsx'
 
 /**
@@ -17,7 +18,7 @@ function generateUUID(): string {
         return crypto.randomUUID()
     }
 
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0
         const v = c === 'x' ? r : (r & 0x3 | 0x8)
         return v.toString(16)
@@ -57,21 +58,123 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
     const [articleContent, setArticleContent] = useState<string>('')
     const [isLoadingContent, setIsLoadingContent] = useState(false)
     const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL) // 模型选择
+    const [isStarred, setIsStarred] = useState(false) // 收藏状态
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
 
-    // 当选中文章变化时，重置对话并加载文章内容
+    // 当选中文章变化时,加载对话历史和文章内容
     useEffect(() => {
         if (selectedArticle) {
-            setMessages([])
+            loadChatHistory()
             loadArticleContent()
+            checkStarredStatus()
         }
     }, [selectedArticle?.id])
+
+    // 检查收藏状态
+    const checkStarredStatus = async () => {
+        if (!selectedArticle) return
+
+        try {
+            const session = await dbHelpers.loadChatSession(selectedArticle.id)
+            if (session && session.length > 0) {
+                // 获取session的id
+                const sessions = await db.chatSessions.where('articleId').equals(selectedArticle.id).toArray()
+                if (sessions && sessions.length > 0) {
+                    const sessionId = sessions[0].id
+                    const starredSession = await db.starredChatSessions.get(sessionId)
+                    setIsStarred(!!starredSession)
+                } else {
+                    setIsStarred(false)
+                }
+            } else {
+                setIsStarred(false)
+            }
+        } catch (err) {
+            console.error('Failed to check starred status:', err)
+            setIsStarred(false)
+        }
+    }
+
+    // 收藏/取消收藏对话
+    const handleToggleStar = async () => {
+        if (!selectedArticle || messages.length === 0) return
+
+        try {
+            // 获取当前会话
+            const sessions = await db.chatSessions.where('articleId').equals(selectedArticle.id).toArray()
+            if (!sessions || sessions.length === 0) {
+                console.warn('No session found for this article')
+                return
+            }
+
+            const sessionId = sessions[0].id
+
+            if (isStarred) {
+                await dbHelpers.unstarChatSession(sessionId)
+                setIsStarred(false)
+            } else {
+                await dbHelpers.starChatSession(sessionId)
+                setIsStarred(true)
+            }
+        } catch (err) {
+            console.error('Failed to toggle star:', err)
+        }
+    }
+
+    // 当消息变化时,保存对话历史
+    useEffect(() => {
+        if (selectedArticle && messages.length > 0) {
+            saveChatHistory()
+        }
+    }, [messages])
 
     // 自动滚动到底部
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
+
+    // 加载对话历史
+    const loadChatHistory = async () => {
+        if (!selectedArticle) return
+
+        try {
+            const history = await dbHelpers.loadChatSession(selectedArticle.id)
+            if (history && history.length > 0) {
+                // 将ChatMessage转换为Message格式
+                const loadedMessages: Message[] = history.map((msg, index) => ({
+                    id: `${selectedArticle.id}-${msg.role}-${index}`,
+                    role: msg.role,
+                    content: msg.content,
+                    timestamp: msg.timestamp,
+                    model: index > 0 && msg.role === 'assistant' ? selectedModel : undefined,
+                }))
+                setMessages(loadedMessages)
+            } else {
+                setMessages([])
+            }
+        } catch (err) {
+            console.error('Failed to load chat history:', err)
+            setMessages([])
+        }
+    }
+
+    // 保存对话历史
+    const saveChatHistory = async () => {
+        if (!selectedArticle || messages.length === 0) return
+
+        try {
+            // 转换为ChatMessage格式
+            const chatMessages = messages.map(m => ({
+                role: m.role,
+                content: m.content,
+                timestamp: m.timestamp,
+            }))
+            await dbHelpers.saveChatSession(selectedArticle.id, chatMessages, selectedModel)
+        } catch (err) {
+            console.error('Failed to save chat history:', err)
+        }
+    }
 
     // 加载文章内容作为上下文
     const loadArticleContent = async () => {
@@ -159,8 +262,16 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
     }
 
     // 清空对话
-    const handleClear = () => {
+    const handleClear = async () => {
         setMessages([])
+        // 同时清除数据库中的对话历史
+        if (selectedArticle) {
+            try {
+                await dbHelpers.saveChatSession(selectedArticle.id, [], selectedModel)
+            } catch (err) {
+                console.error('Failed to clear chat history:', err)
+            }
+        }
     }
 
     // 快捷键发送
@@ -182,6 +293,18 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
                     <span className="font-semibold text-slate-800">AI 助手</span>
                 </div>
                 <div className="flex items-center gap-1">
+                    <button
+                        onClick={handleToggleStar}
+                        disabled={messages.length === 0}
+                        className={clsx(
+                            'btn-ghost p-2 transition-colors',
+                            isStarred ? 'text-orange-500 hover:text-orange-600' : 'text-slate-400 hover:text-slate-600',
+                            messages.length === 0 && 'opacity-50 cursor-not-allowed'
+                        )}
+                        title={isStarred ? '取消收藏' : '收藏对话'}
+                    >
+                        <Star size={16} fill={isStarred ? 'currentColor' : 'none'} />
+                    </button>
                     <button
                         onClick={handleClear}
                         className="btn-ghost p-2 text-slate-400 hover:text-slate-600"

@@ -6,7 +6,7 @@ function generateUUID(): string {
         return crypto.randomUUID()
     }
 
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0
         const v = c === 'x' ? r : (r & 0x3 | 0x8)
         return v.toString(16)
@@ -51,6 +51,7 @@ interface FeedState {
     markArticleRead: (articleId: string) => Promise<void>
     generateArticleSummary: (article: Article) => Promise<string | null>
     starArticle: (articleId: string, content: string) => Promise<void>
+    unstarArticle: (articleId: string) => Promise<void>
 }
 
 export const useFeedStore = create<FeedState>((set, get) => ({
@@ -310,18 +311,67 @@ export const useFeedStore = create<FeedState>((set, get) => ({
 
         set(state => ({ generatingSummaryIds: new Set([...state.generatingSummaryIds, article.id]) }))
         try {
-            // 需要先获取文章原文
-            const response = await fetch(
-                `https://api.allorigins.win/raw?url=${encodeURIComponent(article.link)}`
-            )
-            const html = await response.text()
+            // 多个 CORS 代理备选方案
+            const proxies = [
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(article.link)}`,
+                `https://corsproxy.io/?${encodeURIComponent(article.link)}`,
+                article.link // 直接尝试（可能因 CORS 失败，但值得一试）
+            ]
+
+            let html = ''
+
+            // 尝试所有代理
+            for (const proxyUrl of proxies) {
+                try {
+                    console.log(`尝试获取文章内容: ${proxyUrl.substring(0, 100)}...`)
+                    const controller = new AbortController()
+                    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
+
+                    const response = await fetch(proxyUrl, {
+                        signal: controller.signal,
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    })
+                    clearTimeout(timeoutId)
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`)
+                    }
+
+                    html = await response.text()
+                    if (html && html.length > 100) {
+                        console.log('成功获取文章内容')
+                        break
+                    }
+                } catch (err) {
+                    console.warn(`代理失败: ${err}`)
+                    continue
+                }
+            }
+
+            if (!html || html.length < 100) {
+                throw new Error(
+                    `无法获取文章内容。\n\n` +
+                    `可能原因：\n` +
+                    `• 文章网站阻止了跨域访问\n` +
+                    `• 所有 CORS 代理服务均不可用\n` +
+                    `• 网络连接问题\n\n` +
+                    `建议：尝试直接访问原文链接`
+                )
+            }
 
             // 简单提取文本内容
             const tempDiv = document.createElement('div')
             tempDiv.innerHTML = html
             const textContent = tempDiv.textContent || tempDiv.innerText || ''
 
+            if (!textContent || textContent.length < 50) {
+                throw new Error('提取的文章内容太短，无法生成有效摘要')
+            }
+
             // 调用 AI 生成摘要
+            console.log(`开始生成 AI 摘要，内容长度: ${textContent.length}`)
             const summary = await generateSummary(textContent.slice(0, 8000))
 
             // 保存到数据库
@@ -337,9 +387,11 @@ export const useFeedStore = create<FeedState>((set, get) => ({
                     : state.selectedArticle,
             }))
 
+            console.log('AI 摘要生成成功')
             return summary
         } catch (err) {
-            console.error('Failed to generate summary:', err)
+            const errorMsg = err instanceof Error ? err.message : '未知错误'
+            console.error('Failed to generate summary:', errorMsg)
             return null
         } finally {
             set(state => {
@@ -359,6 +411,19 @@ export const useFeedStore = create<FeedState>((set, get) => ({
             ),
             selectedArticle: state.selectedArticle?.id === articleId
                 ? { ...state.selectedArticle, isStarred: true }
+                : state.selectedArticle,
+        }))
+    },
+
+    // 取消收藏文章
+    unstarArticle: async (articleId: string) => {
+        await dbHelpers.unstarArticle(articleId)
+        set(state => ({
+            articles: state.articles.map(a =>
+                a.id === articleId ? { ...a, isStarred: false } : a
+            ),
+            selectedArticle: state.selectedArticle?.id === articleId
+                ? { ...state.selectedArticle, isStarred: false }
                 : state.selectedArticle,
         }))
     },
