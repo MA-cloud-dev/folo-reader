@@ -1,4 +1,19 @@
 /**
+ * 生成UUID v4字符串（兼容性处理）
+ */
+function generateUUID(): string {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID()
+    }
+
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0
+        const v = c === 'x' ? r : (r & 0x3 | 0x8)
+        return v.toString(16)
+    })
+}
+
+/**
  * 状态管理 - 使用 Zustand
  * 参考 Folo 的 Jotai atoms 设计，简化为 Zustand store
  */
@@ -138,7 +153,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
             // 保存文章元数据
             if (feedData.items.length > 0) {
                 const articles = feedData.items.map(item => ({
-                    id: item.guid || item.link || crypto.randomUUID(),
+                    id: item.guid || item.link || generateUUID(),
                     feedId,
                     title: item.title || '无标题',
                     link: item.link || '',
@@ -240,7 +255,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
 
             if (feedData.items.length > 0) {
                 const articles = feedData.items.map(item => ({
-                    id: item.guid || item.link || crypto.randomUUID(),
+                    id: item.guid || item.link || generateUUID(),
                     feedId,
                     title: item.title || '无标题',
                     link: item.link || '',

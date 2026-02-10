@@ -3,7 +3,7 @@
  * 参考 Folo 的数据库设计思路
  */
 import Dexie, { type Table } from 'dexie'
-import type { Feed, Article, StarredArticle, AppSettings } from '@/types'
+import type { Feed, Article, StarredArticle } from '@/types'
 
 export class FoloDatabase extends Dexie {
     feeds!: Table<Feed>
@@ -33,6 +33,21 @@ export class FoloDatabase extends Dexie {
 export const db = new FoloDatabase()
 
 /**
+ * 生成UUID v4字符串（兼容性处理）
+ */
+function generateUUID(): string {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID()
+    }
+
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0
+        const v = c === 'x' ? r : (r & 0x3 | 0x8)
+        return v.toString(16)
+    })
+}
+
+/**
  * 数据库操作辅助函数
  */
 export const dbHelpers = {
@@ -45,7 +60,7 @@ export const dbHelpers = {
             return existing.id
         }
 
-        const id = crypto.randomUUID()
+        const id = generateUUID()
         await db.feeds.add({
             ...feed,
             id,

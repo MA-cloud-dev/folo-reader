@@ -3,6 +3,20 @@
  * 替换 rss-parser，避免 Node.js 依赖问题
  */
 
+/**
+ * 将自定义协议URL转换为实际URL
+ * rsshub:// -> https://rsshub.app/
+ */
+function normalizeUrl(url: string): string {
+    url = url.trim()
+
+    if (url.startsWith('rsshub://')) {
+        return url.replace('rsshub://', 'https://rsshub.app/')
+    }
+
+    return url
+}
+
 // CORS 代理列表
 const CORS_PROXIES = [
     'https://api.allorigins.win/raw?url=',
@@ -103,7 +117,8 @@ async function fetchWithProxy(url: string): Promise<string> {
  * 获取并解析 RSS Feed
  */
 export async function fetchFeed(url: string): Promise<FeedData> {
-    const xmlText = await fetchWithProxy(url)
+    const normalizedUrl = normalizeUrl(url)
+    const xmlText = await fetchWithProxy(normalizedUrl)
     return parseRSS(xmlText)
 }
 

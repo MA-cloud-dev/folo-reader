@@ -9,6 +9,21 @@ import { chatWithAIStream, isAIConfigured, AI_MODELS, DEFAULT_MODEL } from '@/se
 import { fetchArticleContent, extractTextFromHtml } from '@/services/rss'
 import { clsx } from 'clsx'
 
+/**
+ * 生成UUID v4字符串（兼容性处理）
+ */
+function generateUUID(): string {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID()
+    }
+
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0
+        const v = c === 'x' ? r : (r & 0x3 | 0x8)
+        return v.toString(16)
+    })
+}
+
 interface Message {
     id: string
     role: 'user' | 'assistant'
@@ -83,14 +98,14 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
         if (!input.trim() || isLoading || !isAIConfigured()) return
 
         const userMessage: Message = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             role: 'user',
             content: input.trim(),
             timestamp: Date.now(),
         }
 
         // 创建空的 assistant 消息用于流式填充
-        const assistantMessageId = crypto.randomUUID()
+        const assistantMessageId = generateUUID()
         const assistantMessage: Message = {
             id: assistantMessageId,
             role: 'assistant',

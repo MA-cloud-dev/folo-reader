@@ -17,10 +17,10 @@ const DEFAULT_VALUES = {
 }
 
 export function AISettings({ isOpen, onClose }: AISettingsProps) {
+    const [model, setModel] = useState<string>(DEFAULT_VALUES.model)
     const [config, setConfig] = useState<AIConfigData>({
         baseUrl: '',
         apiKey: '',
-        model: '',
     })
     const [showApiKey, setShowApiKey] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
@@ -123,13 +123,13 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
                         </label>
                         <input
                             type="text"
-                            value={config.model}
-                            onChange={(e) => setConfig(prev => ({ ...prev, model: e.target.value }))}
+                            value={model}
+                            onChange={(e) => setModel(e.target.value)}
                             placeholder={DEFAULT_VALUES.model}
                             className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                         />
                         <p className="text-xs text-slate-400 mt-1">
-                            例如：deepseek-ai/DeepSeek-V3, gpt-4o, claude-3-opus
+                            例如：Pro/deepseek-ai/DeepSeek-V3.2, Qwen/Qwen3-VL-32B-Instruct
                         </p>
                     </div>
 
