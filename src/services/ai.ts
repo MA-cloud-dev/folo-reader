@@ -4,6 +4,7 @@
  */
 import OpenAI from 'openai'
 import { DEFAULT_AI_CONFIG } from '@/types'
+import { AI_CONSTANTS } from '@/utils/constants'
 
 // 配置存储 key
 const AI_CONFIG_KEY = 'folo_ai_config'
@@ -96,27 +97,20 @@ export async function generateSummary(
 ): Promise<string> {
     const client = getAIClient()
 
-    // 限制内容长度，避免 token 超限
-    const truncatedContent = content.slice(0, 6000)
-
+    // 内容已在调用方处理好，这里不再截断
     const response = await client.chat.completions.create({
         model: model,
         messages: [
             {
                 role: 'system',
-                content: `你是一个专业的内容摘要助手。请用简洁的中文总结以下文章的核心观点，要求：
-1. 摘要不超过 150 字
-2. 提取 2-3 个关键要点
-3. 如果是技术文章，突出技术亮点
-4. 如果是新闻，突出关键信息（时间、人物、事件）
-5. 使用简洁的纯 HTML 格式输出（只用 <p>, <strong>, <ul>, <li> 标签，不要使用 <html>, <head>, <body> 等结构标签）`,
+                content: '你是内容摘要助手。用150字内的中文总结核心观点，以HTML格式输出（可用<p>, <strong>, <ul>, <li>标签）。',
             },
             {
                 role: 'user',
-                content: truncatedContent,
+                content: content,
             },
         ],
-        max_tokens: 500,
+        max_tokens: AI_CONSTANTS.SUMMARY_MAX_TOKENS,
         temperature: 0.3,
     })
 
@@ -134,7 +128,7 @@ export async function translateText(
 ): Promise<string> {
     const client = getAIClient()
 
-    const truncatedContent = content.slice(0, 6000)
+    const truncatedContent = content.slice(0, AI_CONSTANTS.MAX_CONTENT_LENGTH)
 
     const response = await client.chat.completions.create({
         model: model,
@@ -185,7 +179,7 @@ export async function chatWithAI(
 文章标题：${articleTitle}
 
 文章内容：
-${articleContent.slice(0, 6000)}
+${articleContent.slice(0, AI_CONSTANTS.MAX_CONTENT_LENGTH)}
 
 请根据文章内容回答用户的问题。如果问题与文章无关，可以友好地引导用户询问与文章相关的问题。回答要简洁、准确、有帮助。使用中文回答。`
         : `你是一个智能阅读助手。请用中文回答用户的问题，回答要简洁、准确、有帮助。`
@@ -217,7 +211,8 @@ export async function chatWithAIStream(
     articleTitle: string,
     articleContent: string,
     onChunk: (chunk: string) => void,
-    model: string = DEFAULT_MODEL
+    model: string = DEFAULT_MODEL,
+    signal?: AbortSignal
 ): Promise<void> {
     const client = getAIClient()
 
@@ -228,7 +223,7 @@ export async function chatWithAIStream(
 文章标题：${articleTitle}
 
 文章内容：
-${articleContent.slice(0, 6000)}
+${articleContent.slice(0, AI_CONSTANTS.MAX_CONTENT_LENGTH)}
 
 请根据文章内容回答用户的问题。如果问题与文章无关，可以友好地引导用户询问与文章相关的问题。
 
@@ -258,19 +253,27 @@ ${articleContent.slice(0, 6000)}
         { role: 'user', content: userMessage },
     ]
 
-    const stream = await client.chat.completions.create({
-        model: model,
-        messages,
-        max_tokens: 1000,
-        temperature: 0.7,
-        stream: true,
-    })
+    try {
+        const stream = await client.chat.completions.create({
+            model: model,
+            messages,
+            max_tokens: 1000,
+            temperature: 0.7,
+            stream: true,
+        }, { signal })
 
-    for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content
-        if (content) {
-            onChunk(content)
+        for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content
+            if (content) {
+                onChunk(content)
+            }
         }
+    } catch (error: any) {
+        if (error?.name === 'AbortError') {
+            console.log('Stream aborted')
+            return
+        }
+        throw error
     }
 }
 

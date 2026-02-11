@@ -14,6 +14,7 @@ import type {
     Note,
     NoteReference
 } from '@/types'
+import { generateUUID } from '@/utils/uuid'
 
 export class FoloDatabase extends Dexie {
     feeds!: Table<Feed>
@@ -91,18 +92,6 @@ export const db = new FoloDatabase()
 /**
  * 生成UUID v4字符串（兼容性处理）
  */
-function generateUUID(): string {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID()
-    }
-
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = Math.random() * 16 | 0
-        const v = c === 'x' ? r : (r & 0x3 | 0x8)
-        return v.toString(16)
-    })
-}
-
 /**
  * 数据库操作辅助函数
  */
@@ -147,17 +136,30 @@ export const dbHelpers = {
         }
     },
 
-    /** 添加或更新文章 */
+    /** 添加或更新文章（保留已有的摘要和用户数据） */
     async upsertArticles(articles: Omit<Article, 'isRead' | 'isStarred'>[]): Promise<void> {
         const now = Date.now()
         const expiresAt = now + 24 * 60 * 60 * 1000 // 24小时后过期
 
-        const articlesToAdd = articles.map(article => ({
-            ...article,
-            isRead: false,
-            isStarred: false,
-            expiresAt: article.expiresAt || expiresAt, // 如果已有过期时间则保留,否则设置新的
-        }))
+        // 批量查询已有文章
+        const articleIds = articles.map(a => a.id)
+        const existingArticles = await db.articles.where('id').anyOf(articleIds).toArray()
+        const existingMap = new Map(existingArticles.map(a => [a.id, a]))
+
+        const articlesToAdd = articles.map(article => {
+            const existing = existingMap.get(article.id)
+
+            return {
+                ...article,
+                // 保留已有的用户数据和 AI 摘要
+                isRead: existing?.isRead ?? false,
+                isStarred: existing?.isStarred ?? false,
+                aiSummary: existing?.aiSummary, // 保留摘要！
+                summaryGeneratedAt: existing?.summaryGeneratedAt,
+                // 只有新文章才设置过期时间，已有文章保留原过期时间
+                expiresAt: existing?.expiresAt || article.expiresAt || expiresAt,
+            }
+        })
 
         await db.articles.bulkPut(articlesToAdd)
     },

@@ -24,6 +24,7 @@ export interface Article {
     link: string
     pubDate: number       // 发布时间戳
     author?: string
+    description?: string  // RSS 源的 description/content 字段（用于快速生成摘要）
     isRead: boolean
     isStarred: boolean    // 收藏
     aiSummary?: string    // AI 生成的摘要

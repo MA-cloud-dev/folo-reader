@@ -17,12 +17,16 @@ function normalizeUrl(url: string): string {
     return url
 }
 
-// CORS 代理列表
+// CORS 代理列表（按稳定性排序）
 const CORS_PROXIES = [
+    'https://api.codetabs.com/v1/proxy?quest=', // 实测最稳定
     'https://api.allorigins.win/raw?url=',
     'https://corsproxy.io/?',
-    'https://api.codetabs.com/v1/proxy?quest=',
 ]
+
+// 代理缓存（记住上次成功的代理索引）
+let lastSuccessfulProxyIndex: number | null = null
+let proxyFailureCount: Map<number, number> = new Map() // 失败计数
 
 export interface FeedData {
     title: string
@@ -70,16 +74,41 @@ async function fetchWithProxy(url: string): Promise<string> {
         errors.push(`直接访问异常: ${(err as Error).message}`)
     }
 
-    // 尝试使用代理
-    for (let i = 0; i < CORS_PROXIES.length; i++) {
+    // 尝试使用代理（智能排序）
+    const proxyIndices = Array.from({ length: CORS_PROXIES.length }, (_, i) => i)
+
+    // 将上次成功的代理移到最前面
+    if (lastSuccessfulProxyIndex !== null) {
+        proxyIndices.sort((a, b) => {
+            if (a === lastSuccessfulProxyIndex) return -1
+            if (b === lastSuccessfulProxyIndex) return 1
+            return (proxyFailureCount.get(a) || 0) - (proxyFailureCount.get(b) || 0)
+        })
+    }
+
+    for (const i of proxyIndices) {
         const proxy = CORS_PROXIES[i]
+        const failures = proxyFailureCount.get(i) || 0
+
+        // 跳过连续失败超过 3 次的代理（除非是最后选择）
+        if (failures >= 3 && proxyIndices.filter(idx => (proxyFailureCount.get(idx) || 0) < 3).length > 0) {
+            console.log(`[RSS] 跳过代理 ${i + 1}（失败 ${failures} 次）`)
+            continue
+        }
+
         try {
             const proxyUrl = proxy + encodeURIComponent(url)
             console.log(`[RSS] 尝试代理 ${i + 1}/${CORS_PROXIES.length}: ${proxy}`)
 
+            // 添加 3 秒超时
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 3000)
+
             const response = await fetch(proxyUrl, {
+                signal: controller.signal,
                 headers: { 'Accept': 'application/rss+xml, application/xml, text/xml' }
             })
+            clearTimeout(timeoutId)
 
             if (response.ok) {
                 const text = await response.text()
@@ -87,23 +116,33 @@ async function fetchWithProxy(url: string): Promise<string> {
                 // 验证响应内容不为空
                 if (!text || text.trim().length === 0) {
                     errors.push(`代理 ${i + 1} 返回空内容`)
+                    proxyFailureCount.set(i, failures + 1)
                     continue
                 }
 
                 // 验证响应内容看起来像XML
                 if (!text.trim().startsWith('<')) {
                     errors.push(`代理 ${i + 1} 返回非XML内容: ${text.substring(0, 100)}`)
+                    proxyFailureCount.set(i, failures + 1)
                     continue
                 }
 
                 console.log(`[RSS] 代理 ${i + 1} 成功`)
+
+                // 记住成功的代理
+                lastSuccessfulProxyIndex = i
+                proxyFailureCount.set(i, 0) // 重置失败计数
+
                 return text
             } else {
                 errors.push(`代理 ${i + 1} HTTP错误: ${response.status}`)
+                proxyFailureCount.set(i, failures + 1)
             }
         } catch (err) {
             lastError = err as Error
-            errors.push(`代理 ${i + 1} 异常: ${lastError.message}`)
+            const errorMsg = err instanceof Error && err.name === 'AbortError' ? '超时(3s)' : lastError.message
+            errors.push(`代理 ${i + 1}: ${errorMsg}`)
+            proxyFailureCount.set(i, failures + 1)
             continue
         }
     }
@@ -227,19 +266,4 @@ export async function fetchArticleContent(url: string): Promise<string> {
     return html
 }
 
-/**
- * 从 HTML 中提取纯文本（用于 AI 摘要）
- */
-export function extractTextFromHtml(html: string): string {
-    const div = document.createElement('div')
-    div.innerHTML = html
 
-    // 移除脚本和样式
-    div.querySelectorAll('script, style, nav, header, footer, aside').forEach(el => el.remove())
-
-    // 尝试找主内容区
-    const article = div.querySelector('article, main, .content, .post-content, .entry-content')
-    const target = article || div
-
-    return target.textContent?.trim() || ''
-}

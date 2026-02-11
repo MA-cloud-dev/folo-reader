@@ -1,27 +1,14 @@
 /**
- * 生成UUID v4字符串（兼容性处理）
- */
-function generateUUID(): string {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID()
-    }
-
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = Math.random() * 16 | 0
-        const v = c === 'x' ? r : (r & 0x3 | 0x8)
-        return v.toString(16)
-    })
-}
-
-/**
  * 状态管理 - 使用 Zustand
  * 参考 Folo 的 Jotai atoms 设计，简化为 Zustand store
  */
 import { create } from 'zustand'
 import type { Feed, Article } from '@/types'
 import { db, dbHelpers } from '@/db'
-import { fetchFeed } from '@/services/rss'
+import { fetchFeed, fetchArticleContent } from '@/services/rss'
 import { generateSummary, filterArticlesBatch, isAIConfigured } from '@/services/ai'
+import { extractContentForSummary } from '@/services/contentExtractor'
+import { generateUUID } from '@/utils/uuid'
 import { PRESET_FEEDS } from '@/config/presetFeeds'
 
 interface FeedState {
@@ -160,6 +147,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
                     link: item.link || '',
                     pubDate: item.pubDate ? new Date(item.pubDate).getTime() : Date.now(),
                     author: item.creator || item.author,
+                    description: item.content || item.description, // 用于快速生成摘要
                 }))
                 await dbHelpers.upsertArticles(articles)
             }
@@ -262,6 +250,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
                     link: item.link || '',
                     pubDate: item.pubDate ? new Date(item.pubDate).getTime() : Date.now(),
                     author: item.creator || item.author,
+                    description: item.content || item.description, // 用于快速生成摘要
                 }))
                 await dbHelpers.upsertArticles(articles)
             }
@@ -311,68 +300,17 @@ export const useFeedStore = create<FeedState>((set, get) => ({
 
         set(state => ({ generatingSummaryIds: new Set([...state.generatingSummaryIds, article.id]) }))
         try {
-            // 多个 CORS 代理备选方案
-            const proxies = [
-                `https://api.allorigins.win/raw?url=${encodeURIComponent(article.link)}`,
-                `https://corsproxy.io/?${encodeURIComponent(article.link)}`,
-                article.link // 直接尝试（可能因 CORS 失败，但值得一试）
-            ]
+            // 使用智能内容提取服务
+            const { content, source } = await extractContentForSummary(
+                article.description, // 使用 RSS 自带的 description/content 字段
+                article.link,
+                fetchArticleContent
+            )
 
-            let html = ''
-
-            // 尝试所有代理
-            for (const proxyUrl of proxies) {
-                try {
-                    console.log(`尝试获取文章内容: ${proxyUrl.substring(0, 100)}...`)
-                    const controller = new AbortController()
-                    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
-
-                    const response = await fetch(proxyUrl, {
-                        signal: controller.signal,
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
-                    })
-                    clearTimeout(timeoutId)
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`)
-                    }
-
-                    html = await response.text()
-                    if (html && html.length > 100) {
-                        console.log('成功获取文章内容')
-                        break
-                    }
-                } catch (err) {
-                    console.warn(`代理失败: ${err}`)
-                    continue
-                }
-            }
-
-            if (!html || html.length < 100) {
-                throw new Error(
-                    `无法获取文章内容。\n\n` +
-                    `可能原因：\n` +
-                    `• 文章网站阻止了跨域访问\n` +
-                    `• 所有 CORS 代理服务均不可用\n` +
-                    `• 网络连接问题\n\n` +
-                    `建议：尝试直接访问原文链接`
-                )
-            }
-
-            // 简单提取文本内容
-            const tempDiv = document.createElement('div')
-            tempDiv.innerHTML = html
-            const textContent = tempDiv.textContent || tempDiv.innerText || ''
-
-            if (!textContent || textContent.length < 50) {
-                throw new Error('提取的文章内容太短，无法生成有效摘要')
-            }
+            console.log(`[摘要生成] ${article.title.substring(0, 30)}... | 来源: ${source}, 长度: ${content.length}`)
 
             // 调用 AI 生成摘要
-            console.log(`开始生成 AI 摘要，内容长度: ${textContent.length}`)
-            const summary = await generateSummary(textContent.slice(0, 8000))
+            const summary = await generateSummary(content)
 
             // 保存到数据库
             await dbHelpers.updateAISummary(article.id, summary)
@@ -387,11 +325,11 @@ export const useFeedStore = create<FeedState>((set, get) => ({
                     : state.selectedArticle,
             }))
 
-            console.log('AI 摘要生成成功')
+            console.log('[摘要生成] 成功')
             return summary
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : '未知错误'
-            console.error('Failed to generate summary:', errorMsg)
+            console.error('[摘要生成] 失败:', errorMsg)
             return null
         } finally {
             set(state => {

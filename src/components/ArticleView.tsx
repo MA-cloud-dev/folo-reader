@@ -4,7 +4,8 @@
 import { useState, useEffect } from 'react'
 import { ExternalLink, Star, RefreshCw, Globe, Sparkles } from 'lucide-react'
 import { useFeedStore } from '@/stores/feedStore'
-import { fetchArticleContent, extractTextFromHtml } from '@/services/rss'
+import { fetchArticleContent } from '@/services/rss'
+import { extractTextFromHtml } from '@/services/contentExtractor'
 import { clsx } from 'clsx'
 
 export function ArticleView() {
