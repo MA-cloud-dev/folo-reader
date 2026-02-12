@@ -72,7 +72,11 @@ export function resetAIConfig(): void {
 
 // getCurrentModel 函数已移除，模型现在由调用方传入
 
-// 获取 OpenAI 客户端
+// OpenAI 客户端单例缓存
+let cachedClient: OpenAI | null = null
+let cachedConfigHash = ''
+
+// 获取 OpenAI 客户端（单例，配置变更时自动重建）
 function getAIClient() {
     const config = getAIConfig()
 
@@ -80,11 +84,18 @@ function getAIClient() {
         throw new Error('请先在设置中配置 API Key')
     }
 
-    return new OpenAI({
+    const configHash = `${config.baseUrl}|${config.apiKey}`
+    if (cachedClient && configHash === cachedConfigHash) {
+        return cachedClient
+    }
+
+    cachedClient = new OpenAI({
         baseURL: config.baseUrl,
         apiKey: config.apiKey,
         dangerouslyAllowBrowser: true,
     })
+    cachedConfigHash = configHash
+    return cachedClient
 }
 
 

@@ -62,10 +62,10 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
                 {/* 头部 */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-200">
-                    <h2 className="text-lg font-semibold text-slate-800">AI 设置</h2>
+                <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                    <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">AI 设置</h2>
                     <button
                         onClick={onClose}
                         className="btn-ghost p-2 text-slate-400 hover:text-slate-600"
@@ -78,7 +78,7 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
                 <div className="p-4 space-y-4">
                     {/* Base URL */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             API Base URL
                         </label>
                         <input
@@ -86,7 +86,7 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
                             value={config.baseUrl}
                             onChange={(e) => setConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
                             placeholder={DEFAULT_VALUES.baseUrl}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600"
                         />
                         <p className="text-xs text-slate-400 mt-1">
                             兼容 OpenAI 格式的 API 地址
@@ -95,7 +95,7 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
 
                     {/* API Key */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             API Key
                         </label>
                         <div className="relative">
@@ -104,7 +104,7 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
                                 value={config.apiKey}
                                 onChange={(e) => setConfig(prev => ({ ...prev, apiKey: e.target.value }))}
                                 placeholder="sk-xxxxxx"
-                                className="w-full px-3 py-2 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                                className="w-full px-3 py-2 pr-10 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600"
                             />
                             <button
                                 type="button"
@@ -118,7 +118,7 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
 
                     {/* Model */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             模型名称
                         </label>
                         <input
@@ -126,7 +126,7 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
                             value={model}
                             onChange={(e) => setModel(e.target.value)}
                             placeholder={DEFAULT_VALUES.model}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600"
                         />
                         <p className="text-xs text-slate-400 mt-1">
                             例如：Pro/deepseek-ai/DeepSeek-V3.2, Qwen/Qwen3-VL-32B-Instruct
@@ -137,8 +137,8 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
                     {message && (
                         <div
                             className={`text-sm px-3 py-2 rounded-lg ${message.type === 'success'
-                                    ? 'bg-green-50 text-green-600'
-                                    : 'bg-red-50 text-red-600'
+                                ? 'bg-green-50 text-green-600'
+                                : 'bg-red-50 text-red-600'
                                 }`}
                         >
                             {message.text}
@@ -147,7 +147,7 @@ export function AISettings({ isOpen, onClose }: AISettingsProps) {
                 </div>
 
                 {/* 底部按钮 */}
-                <div className="flex items-center justify-between p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+                <div className="flex items-center justify-between p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-b-xl">
                     <button
                         onClick={handleReset}
                         className="btn-ghost flex items-center gap-1 text-slate-500"

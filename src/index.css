@@ -17,6 +17,12 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+.dark body,
+html.dark body {
+    background-color: #0f172a;
+    color: #e2e8f0;
+}
+
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
     width: 8px;
@@ -36,10 +42,22 @@ body {
     background: #94a3b8;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
 /* 工具类 */
 @layer components {
     .card {
         @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+    }
+
+    .dark .card {
+        @apply bg-slate-800 border-slate-700;
     }
 
     .btn-primary {
@@ -49,4 +67,99 @@ body {
     .btn-ghost {
         @apply px-3 py-2 rounded-lg transition-colors hover:bg-slate-100 text-slate-600;
     }
+
+    .dark .btn-ghost {
+        @apply hover:bg-slate-700 text-slate-300;
+    }
+}
+
+/* 文章内容样式 - 区分子标题与正文 */
+.article-content h1 {
+    font-size: 1.5em;
+    font-weight: 800;
+    margin-top: 2em;
+    margin-bottom: 0.6em;
+    color: #0f172a;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 0.4em;
+}
+
+.article-content h2 {
+    font-size: 1.35em;
+    font-weight: 700;
+    margin-top: 1.8em;
+    margin-bottom: 0.5em;
+    color: #1e293b;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.3em;
+}
+
+.article-content h3 {
+    font-size: 1.15em;
+    font-weight: 600;
+    margin-top: 1.5em;
+    margin-bottom: 0.4em;
+    color: #334155;
+    padding-left: 0.6em;
+    border-left: 3px solid #f97316;
+}
+
+.article-content h4,
+.article-content h5,
+.article-content h6 {
+    font-size: 1.05em;
+    font-weight: 600;
+    margin-top: 1.2em;
+    margin-bottom: 0.3em;
+    color: #475569;
+}
+
+.article-content p {
+    margin: 1em 0;
+    line-height: 1.85;
+    color: #334155;
+}
+
+.article-content blockquote {
+    border-left: 3px solid #cbd5e1;
+    padding-left: 1em;
+    color: #64748b;
+    font-style: italic;
+    margin: 1.2em 0;
+}
+
+.article-content img {
+    border-radius: 0.5rem;
+    margin: 1.5em auto;
+    max-width: 100%;
+}
+
+/* 暗色模式下的文章内容样式 */
+.dark .article-content h1 {
+    color: #f1f5f9;
+    border-bottom-color: #334155;
+}
+
+.dark .article-content h2 {
+    color: #e2e8f0;
+    border-bottom-color: #334155;
+}
+
+.dark .article-content h3 {
+    color: #cbd5e1;
+}
+
+.dark .article-content h4,
+.dark .article-content h5,
+.dark .article-content h6 {
+    color: #94a3b8;
+}
+
+.dark .article-content p {
+    color: #cbd5e1;
+}
+
+.dark .article-content blockquote {
+    border-left-color: #475569;
+    color: #94a3b8;
 }

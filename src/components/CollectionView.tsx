@@ -117,11 +117,11 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
     }
 
     return (
-        <div className="h-full bg-white flex flex-col">
+        <div className="h-full bg-white dark:bg-slate-900 flex flex-col">
             {/* 顶部栏 */}
-            <div className="p-4 border-b border-slate-200">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <Star size={20} className="text-orange-500" />
                         我的收藏
                     </h2>
@@ -142,7 +142,7 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
                         onClick={() => setFilter('all')}
                         className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${filter === 'all'
                             ? 'bg-orange-500 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                             }`}
                     >
                         全部
@@ -151,7 +151,7 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
                         onClick={() => setFilter('article')}
                         className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${filter === 'article'
                             ? 'bg-orange-500 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                             }`}
                     >
                         <FileText size={14} />
@@ -161,7 +161,7 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
                         onClick={() => setFilter('chat')}
                         className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${filter === 'chat'
                             ? 'bg-orange-500 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                             }`}
                     >
                         <MessageSquare size={14} />
@@ -177,7 +177,7 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
                         placeholder="搜索收藏..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                     />
                 </div>
             </div>
@@ -198,7 +198,7 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
                         {filteredItems.map(item => (
                             <div
                                 key={`${item.type}-${item.id}`}
-                                className="p-4 bg-slate-50 rounded-lg border border-slate-200 hover:border-orange-300 transition-colors cursor-pointer group"
+                                className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-700 transition-colors cursor-pointer group"
                                 onClick={() => handleViewArticle(item)}
                             >
                                 {/* 标题和时间 */}
@@ -209,7 +209,7 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
                                         ) : (
                                             <MessageSquare size={16} className="text-blue-500 mt-1 flex-shrink-0" />
                                         )}
-                                        <h3 className="font-medium text-slate-800 line-clamp-2 text-sm">
+                                        <h3 className="font-medium text-slate-800 dark:text-slate-200 line-clamp-2 text-sm">
                                             {item.title}
                                         </h3>
                                     </div>
@@ -219,7 +219,7 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
                                 </div>
 
                                 {/* 预览内容 */}
-                                <p className="text-sm text-slate-600 line-clamp-2 mb-3">
+                                <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mb-3">
                                     {item.preview}
                                 </p>
 
@@ -230,7 +230,7 @@ export function CollectionView({ isExpanded = true, onToggle }: CollectionViewPr
                                             e.stopPropagation()
                                             handleViewArticle(item)
                                         }}
-                                        className="px-3 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
+                                        className="px-3 py-1 text-xs bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
                                     >
                                         查看
                                     </button>

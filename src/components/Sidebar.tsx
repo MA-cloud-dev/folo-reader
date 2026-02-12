@@ -2,10 +2,15 @@
  * 侧边栏组件 - 订阅源列表
  */
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Trash2, Rss, ChevronRight, Settings, PanelLeftClose, PanelLeftOpen, Download, ChevronsUpDown, Star, FileText } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Rss, ChevronRight, Settings, PanelLeftClose, PanelLeftOpen, Download, ChevronsUpDown, Star, FileText, Database, Sun, Moon } from 'lucide-react'
+import { toast } from 'sonner'
 import { useFeedStore } from '@/stores/feedStore'
+import { useThemeStore } from '@/stores/themeStore'
+import { useUIStore } from '@/stores/uiStore'
 import { clsx } from 'clsx'
 import { AISettings } from './AISettings'
+import { AddFeedModal } from './AddFeedModal'
+import { DataManagementModal } from './DataManagementModal'
 
 interface SidebarProps {
     isExpanded: boolean
@@ -23,17 +28,16 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
         isLoading,
         isFetchingFeed,
         loadFeeds,
-        addFeed,
         deleteFeed,
         selectFeed,
         refreshAllFeeds,
     } = useFeedStore()
 
+    const { theme, isDark, setTheme } = useThemeStore()
+
     const [showAddModal, setShowAddModal] = useState(false)
-    const [showSettings, setShowSettings] = useState(false)
-    const [newFeedUrl, setNewFeedUrl] = useState('')
-    const [newFeedTitle, setNewFeedTitle] = useState('')
-    const [isAdding, setIsAdding] = useState(false)
+    const { isAISettingsOpen, setAISettingsOpen } = useUIStore()
+    const [showDataManagement, setShowDataManagement] = useState(false)
     const [isLoadingPresets, setIsLoadingPresets] = useState(false)
 
     // 分类折叠状态（localStorage 持久化）
@@ -56,41 +60,28 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
         localStorage.setItem('folo_collapsed_categories', JSON.stringify([...collapsedCategories]))
     }, [collapsedCategories])
 
-    // 添加订阅源
-    const handleAddFeed = async () => {
-        if (!newFeedUrl.trim()) return
 
-        setIsAdding(true)
-        try {
-            await addFeed(newFeedUrl.trim(), newFeedTitle.trim() || undefined)
-            setNewFeedUrl('')
-            setNewFeedTitle('')
-            setShowAddModal(false)
-        } catch (err) {
-            console.error('Failed to add feed:', err)
-            alert('添加订阅源失败,请检查 URL 是否正确')
-        } finally {
-            setIsAdding(false)
-        }
-    }
 
     // 一键加载预设订阅源
     const handleLoadPresets = async () => {
-        const confirmed = window.confirm(
-            '即将加载预设信息源（共22个），已存在的源将自动跳过。\n\n包括：AI前沿、科技资讯、足球资讯、财经经济、心理学、书籍推荐、开源项目、综合新闻等分类。\n\n确定继续？'
-        )
-        if (!confirmed) return
-
-        setIsLoadingPresets(true)
-        try {
-            const result = await useFeedStore.getState().initPresetFeeds()
-            alert(`加载完成！\n\n新增: ${result.addedCount} 个\n跳过: ${result.skippedCount} 个（已存在）`)
-        } catch (err) {
-            console.error('Failed to load presets:', err)
-            alert('加载预设源失败，请稍后重试')
-        } finally {
-            setIsLoadingPresets(false)
-        }
+        toast('即将加载预设信息源（共22个）', {
+            description: '已存在的源将自动跳过',
+            action: {
+                label: '确定加载',
+                onClick: async () => {
+                    setIsLoadingPresets(true)
+                    try {
+                        const result = await useFeedStore.getState().initPresetFeeds()
+                        toast.success(`加载完成！新增 ${result.addedCount} 个，跳过 ${result.skippedCount} 个`)
+                    } catch (err) {
+                        console.error('Failed to load presets:', err)
+                        toast.error('加载预设源失败，请稍后重试')
+                    } finally {
+                        setIsLoadingPresets(false)
+                    }
+                },
+            },
+        })
     }
 
     // 切换单个分类折叠状态
@@ -130,11 +121,11 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
     // 收缩状态显示
     if (!isExpanded) {
         return (
-            <div className="flex flex-col h-full items-center py-4 gap-4">
+            <div className="flex flex-col h-full items-center py-4 gap-4 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700">
                 {/* 展开按钮 */}
                 <button
                     onClick={onToggle}
-                    className="btn-ghost p-2 text-slate-600 hover:text-orange-500"
+                    className="btn-ghost p-2 text-slate-600 dark:text-slate-400 hover:text-orange-500"
                     title="展开侧边栏"
                 >
                     <PanelLeftOpen size={20} />
@@ -142,32 +133,42 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
 
                 {/* RSS 图标 */}
                 <div className="flex-1 flex items-center">
-                    <Rss size={20} className="text-slate-400" />
+                    <Rss size={20} className="text-slate-400 dark:text-slate-500" />
                 </div>
+
+                {/* 数据管理图标 */}
+                <button
+                    onClick={() => setShowDataManagement(true)}
+                    className="btn-ghost p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    title="数据管理"
+                >
+                    <Database size={16} />
+                </button>
 
                 {/* 设置图标 */}
                 <button
-                    onClick={() => setShowSettings(true)}
-                    className="btn-ghost p-2 text-slate-400 hover:text-slate-600"
+                    onClick={() => setAISettingsOpen(true)}
+                    className="btn-ghost p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                     title="AI 设置"
                 >
                     <Settings size={16} />
                 </button>
 
                 {/* AI 设置弹窗 */}
-                <AISettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+                <AISettings isOpen={isAISettingsOpen} onClose={() => setAISettingsOpen(false)} />
+                <DataManagementModal isOpen={showDataManagement} onClose={() => setShowDataManagement(false)} />
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col h-full">{/* 头部 */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-                <h1 className="text-lg font-semibold text-slate-800">Folo</h1>
+        <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700">{/* 头部 */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Folo</h1>
                 <div className="flex gap-1">
                     <button
                         onClick={toggleAllCategories}
-                        className="btn-ghost p-2"
+                        className="btn-ghost p-2 text-slate-600 dark:text-slate-400"
                         title={Object.keys(groupedFeeds).every(cat => collapsedCategories.has(cat)) ? '展开全部' : '折叠全部'}
                     >
                         <ChevronsUpDown size={18} />
@@ -175,7 +176,7 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
                     <button
                         onClick={handleLoadPresets}
                         disabled={isLoadingPresets}
-                        className="btn-ghost p-2"
+                        className="btn-ghost p-2 text-slate-600 dark:text-slate-400"
                         title="加载预设源"
                     >
                         <Download size={18} className={clsx(isLoadingPresets && 'animate-pulse')} />
@@ -183,7 +184,7 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
                     <button
                         onClick={() => refreshAllFeeds()}
                         disabled={isFetchingFeed}
-                        className="btn-ghost p-2"
+                        className="btn-ghost p-2 text-slate-600 dark:text-slate-400"
                         title="刷新所有"
                     >
                         <RefreshCw
@@ -193,14 +194,14 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
                     </button>
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="btn-ghost p-2"
+                        className="btn-ghost p-2 text-slate-600 dark:text-slate-400"
                         title="添加订阅"
                     >
                         <Plus size={18} />
                     </button>
                     <button
                         onClick={onToggle}
-                        className="btn-ghost p-2"
+                        className="btn-ghost p-2 text-slate-600 dark:text-slate-400"
                         title="收缩侧边栏"
                     >
                         <PanelLeftClose size={18} />
@@ -211,11 +212,11 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
             {/* 订阅源列表 */}
             <div className="flex-1 overflow-y-auto p-2">
                 {isLoading ? (
-                    <div className="text-center py-8 text-slate-400">
+                    <div className="text-center py-8 text-slate-400 dark:text-slate-500">
                         加载中...
                     </div>
                 ) : feeds.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400">
+                    <div className="text-center py-8 text-slate-400 dark:text-slate-500">
                         <Rss size={32} className="mx-auto mb-2 opacity-50" />
                         <p className="text-sm">暂无订阅源</p>
                         <button
@@ -229,7 +230,7 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
                     Object.entries(groupedFeeds).map(([category, categoryFeeds]) => (
                         <div key={category} className="mb-4">
                             <div
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 transition-colors"
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                                 onClick={() => toggleCategory(category)}
                             >
                                 <ChevronRight
@@ -249,7 +250,7 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
                                         'group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors',
                                         selectedFeed?.id === feed.id
                                             ? 'bg-orange-500 text-white'
-                                            : 'hover:bg-slate-100 text-slate-700'
+                                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                                     )}
                                     onClick={() => {
                                         selectFeed(feed)
@@ -275,13 +276,14 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
                                             const confirmed = window.confirm(`确定删除 "${feed.title}"？`)
                                             if (confirmed) {
                                                 await deleteFeed(feed.id)
+                                                toast.success(`已删除 "${feed.title}"`)
                                             }
                                         }}
                                         className={clsx(
-                                            'opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20',
+                                            'opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 dark:hover:bg-red-500/30',
                                             selectedFeed?.id === feed.id
                                                 ? 'text-white hover:bg-white/20'
-                                                : 'text-red-500'
+                                                : 'text-red-500 dark:text-red-400'
                                         )}
                                     >
                                         <Trash2 size={14} />
@@ -293,102 +295,72 @@ export function Sidebar({ isExpanded, onToggle, activeView = 'feed', onViewChang
                 )}
             </div>
 
-            {/* 收藏和笔记按钮 */}
-            <div className="flex-shrink-0 p-2 space-y-1 border-t border-slate-200">
-                <button
-                    onClick={() => {
-                        // 如果已经在collection视图，切换回feed
-                        if (activeView === 'collection') {
-                            onViewChange?.('feed')
-                        } else {
-                            onViewChange?.('collection')
-                        }
-                    }}
-                    className={clsx(
-                        'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
-                        activeView === 'collection'
-                            ? 'bg-orange-500 text-white'
-                            : 'hover:bg-slate-100 text-slate-700'
-                    )}
-                >
-                    <Star size={18} />
-                    我的收藏
-                </button>
-                <button
-                    onClick={() => onNotePanelToggle?.()}
-                    className={clsx(
-                        'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
-                        isNotePanelExpanded
-                            ? 'bg-orange-500 text-white'  // active状态
-                            : 'hover:bg-slate-100 text-slate-700'
-                    )}
-                >
-                    <FileText size={16} />
-                    我的笔记
-                </button>
-                <button
-                    onClick={() => setShowSettings(true)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors text-sm"
-                >
-                    <Settings size={16} />
-                    AI 设置
-                </button>
+            {/* 底部操作区 */}
+            <div className="p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                <div className="flex flex-col gap-1">
+                    <button
+                        onClick={() => {
+                            if (activeView === 'collection') {
+                                onViewChange?.('feed')
+                            } else {
+                                onViewChange?.('collection')
+                            }
+                        }}
+                        className={clsx(
+                            'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+                            activeView === 'collection'
+                                ? 'bg-orange-500 text-white'
+                                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                        )}
+                    >
+                        <Star size={18} />
+                        我的收藏
+                    </button>
+                    <button
+                        onClick={() => onNotePanelToggle?.()}
+                        className={clsx(
+                            'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+                            isNotePanelExpanded
+                                ? 'bg-orange-500 text-white'  // active状态
+                                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                        )}
+                    >
+                        <FileText size={16} />
+                        我的笔记
+                    </button>
+                    <button
+                        onClick={() => setShowDataManagement(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
+                    >
+                        <Database size={16} />
+                        数据管理
+                    </button>
+                    <button
+                        onClick={() => setAISettingsOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
+                    >
+                        <Settings size={16} />
+                        AI 设置
+                    </button>
+                    <button
+                        onClick={() => {
+                            const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light'
+                            setTheme(next)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
+                    >
+                        {isDark ? <Moon size={16} /> : <Sun size={16} />}
+                        {theme === 'light' ? '浅色模式' : theme === 'dark' ? '深色模式' : '跟随系统'}
+                    </button>
+                </div>
             </div>
 
             {/* 添加订阅弹窗 */}
-            {showAddModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-xl p-6 w-96 max-w-[90vw]">
-                        <h2 className="text-lg font-semibold mb-4 text-slate-800">添加订阅源</h2>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm text-slate-500 mb-1">
-                                    RSS 地址 *
-                                </label>
-                                <input
-                                    type="url"
-                                    value={newFeedUrl}
-                                    onChange={(e) => setNewFeedUrl(e.target.value)}
-                                    placeholder="https://example.com/feed.xml"
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                    autoFocus
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm text-slate-500 mb-1">
-                                    名称（可选）
-                                </label>
-                                <input
-                                    type="text"
-                                    value={newFeedTitle}
-                                    onChange={(e) => setNewFeedTitle(e.target.value)}
-                                    placeholder="留空则自动获取"
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex gap-2 mt-6">
-                            <button
-                                onClick={() => setShowAddModal(false)}
-                                className="flex-1 px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors text-slate-600"
-                            >
-                                取消
-                            </button>
-                            <button
-                                onClick={handleAddFeed}
-                                disabled={isAdding || !newFeedUrl.trim()}
-                                className="flex-1 btn-primary disabled:opacity-50"
-                            >
-                                {isAdding ? '添加中...' : '添加'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <AddFeedModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
 
             {/* AI 设置弹窗 */}
-            <AISettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+            <AISettings isOpen={isAISettingsOpen} onClose={() => setAISettingsOpen(false)} />
+            <DataManagementModal isOpen={showDataManagement} onClose={() => setShowDataManagement(false)} />
         </div>
     )
 }
-

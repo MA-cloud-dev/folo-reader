@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Save, Trash2, Tag, Link as LinkIcon, X, Eye, Edit3, AtSign } from 'lucide-react'
+import { toast } from 'sonner'
 import { dbHelpers } from '@/db'
 import type { Note, Article } from '@/types'
 import { clsx } from 'clsx'
@@ -57,7 +58,7 @@ export function NoteEditor({ note, onClose, onDelete, onUpdate }: NoteEditorProp
             onUpdate()
         } catch (err) {
             console.error('Failed to save note:', err)
-            alert('保存失败')
+            toast.error('保存失败')
         } finally {
             setIsSaving(false)
         }
@@ -70,9 +71,10 @@ export function NoteEditor({ note, onClose, onDelete, onUpdate }: NoteEditorProp
         try {
             await dbHelpers.deleteNote(note.id)
             onDelete()
+            toast.success('笔记已删除')
         } catch (err) {
             console.error('Failed to delete note:', err)
-            alert('删除失败')
+            toast.error('删除失败')
         }
     }
 

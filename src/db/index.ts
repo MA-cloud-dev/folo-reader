@@ -15,6 +15,7 @@ import type {
     NoteReference
 } from '@/types'
 import { generateUUID } from '@/utils/uuid'
+import { EXPIRY_CONSTANTS } from '@/utils/constants'
 
 export class FoloDatabase extends Dexie {
     feeds!: Table<Feed>
@@ -139,7 +140,7 @@ export const dbHelpers = {
     /** 添加或更新文章（保留已有的摘要和用户数据） */
     async upsertArticles(articles: Omit<Article, 'isRead' | 'isStarred'>[]): Promise<void> {
         const now = Date.now()
-        const expiresAt = now + 24 * 60 * 60 * 1000 // 24小时后过期
+        const expiresAt = now + EXPIRY_CONSTANTS.ARTICLE_EXPIRY
 
         // 批量查询已有文章
         const articleIds = articles.map(a => a.id)
@@ -169,19 +170,16 @@ export const dbHelpers = {
         return db.articles
             .where('feedId')
             .equals(feedId)
-            .reverse()
             .sortBy('pubDate')
-            .then(articles => articles.slice(0, limit))
+            .then(articles => articles.reverse().slice(0, limit))
     },
 
     /** 获取所有未读文章 */
     async getUnreadArticles(limit = 100): Promise<Article[]> {
         return db.articles
-            .where('isRead')
-            .equals(0) // Dexie 中 boolean false = 0
-            .reverse()
+            .filter(article => !article.isRead)
             .sortBy('pubDate')
-            .then(articles => articles.slice(0, limit))
+            .then(articles => articles.reverse().slice(0, limit))
     },
 
     /** 标记文章已读 */
@@ -192,7 +190,7 @@ export const dbHelpers = {
     /** 更新文章 AI 摘要 */
     async updateAISummary(articleId: string, summary: string): Promise<void> {
         const now = Date.now()
-        const expiresAt = now + 24 * 60 * 60 * 1000 // 重置过期时间为24小时后
+        const expiresAt = now + EXPIRY_CONSTANTS.ARTICLE_EXPIRY
 
         await db.articles.update(articleId, {
             aiSummary: summary,
@@ -237,7 +235,7 @@ export const dbHelpers = {
         model: string
     ): Promise<void> {
         const now = Date.now()
-        const expiresAt = now + 24 * 60 * 60 * 1000 // 24小时后过期
+        const expiresAt = now + EXPIRY_CONSTANTS.CHAT_SESSION_EXPIRY
 
         // 查找现有会话
         const existing = await db.chatSessions
@@ -290,30 +288,23 @@ export const dbHelpers = {
         console.log('[DB] Starting cleanup of expired data...')
 
         try {
-            // 清理过期的文章元数据(保留收藏的文章)
-            const expiredArticles = await db.articles
+            // 清理过期的文章元数据(保留收藏的文章)，直接 delete 并获取删除数量
+            const deletedArticles = await db.articles
                 .where('expiresAt').below(now)
                 .and(article => !article.isStarred)
-                .count()
+                .delete()
 
-            if (expiredArticles > 0) {
-                await db.articles
-                    .where('expiresAt').below(now)
-                    .and(article => !article.isStarred)
-                    .delete()
-                console.log(`[DB] Cleaned up ${expiredArticles} expired articles`)
+            if (deletedArticles > 0) {
+                console.log(`[DB] Cleaned up ${deletedArticles} expired articles`)
             }
 
             // 清理过期的AI对话
-            const expiredChats = await db.chatSessions
+            const deletedChats = await db.chatSessions
                 .where('expiresAt').below(now)
-                .count()
+                .delete()
 
-            if (expiredChats > 0) {
-                await db.chatSessions
-                    .where('expiresAt').below(now)
-                    .delete()
-                console.log(`[DB] Cleaned up ${expiredChats} expired chat sessions`)
+            if (deletedChats > 0) {
+                console.log(`[DB] Cleaned up ${deletedChats} expired chat sessions`)
             }
 
             console.log('[DB] Cleanup completed')

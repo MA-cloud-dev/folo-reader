@@ -92,7 +92,7 @@ export function NotePanel({
     if (!isExpanded) {
         // 折叠状态 - 只显示切换按钮
         return (
-            <div className="relative flex items-center justify-center w-12 bg-slate-100 border-l border-slate-200">
+            <div className="relative flex items-center justify-center w-12 bg-slate-100 dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700">
                 <button
                     onClick={onToggle}
                     className="absolute top-4 p-2 rounded-lg hover:bg-slate-200 transition-colors"
@@ -109,14 +109,14 @@ export function NotePanel({
 
     return (
         <div
-            className="flex flex-col bg-white border-l border-slate-200"
+            className="flex flex-col bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700"
             style={{ width: `${width}px` }}
         >
             {/* 头部 */}
-            <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                 <div className="flex items-center gap-2">
                     <FileText size={18} className="text-orange-500" />
-                    <h2 className="font-semibold text-slate-800">我的笔记</h2>
+                    <h2 className="font-semibold text-slate-800 dark:text-slate-100">我的笔记</h2>
                 </div>
                 <button
                     onClick={onToggle}
@@ -165,7 +165,7 @@ export function NotePanel({
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 placeholder="搜索笔记..."
-                                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             />
                         </div>
                     </div>
@@ -193,7 +193,7 @@ export function NotePanel({
                                         key={note.id}
                                         className={clsx(
                                             'w-full p-4 rounded-lg border transition-all',
-                                            'border-slate-200 hover:border-orange-300 bg-white hover:bg-orange-50 group'
+                                            'border-slate-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-700 bg-white dark:bg-slate-800 hover:bg-orange-50 dark:hover:bg-slate-700/50 group'
                                         )}
                                     >
                                         {/* 点击区域打开笔记 */}
@@ -201,11 +201,11 @@ export function NotePanel({
                                             onClick={() => onNoteChange(note)}
                                             className="cursor-pointer"
                                         >
-                                            <h3 className="font-semibold text-slate-800 mb-2 line-clamp-1">
+                                            <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-2 line-clamp-1">
                                                 {note.title || '未命名笔记'}
                                             </h3>
                                             {note.content && (
-                                                <p className="text-sm text-slate-600 mb-2 line-clamp-2">
+                                                <p className="text-sm text-slate-600 dark:text-slate-400 mb-2 line-clamp-2">
                                                     {note.content}
                                                 </p>
                                             )}

@@ -124,7 +124,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     },
 
     // 添加订阅源
-    addFeed: async (url: string, title?: string, category?: string) => {
+    addFeed: async (url: string, title?: string, category?: string, aiFilter?: string) => {
         set({ isLoading: true, error: null })
         try {
             // 先尝试获取 RSS 信息
@@ -136,6 +136,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
                 siteUrl: feedData.link,
                 category,
                 favicon: feedData.image?.url,
+                aiFilter,
             })
 
             // 保存文章元数据
@@ -193,12 +194,18 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     selectFeed: async (feed: Feed | null) => {
         set({ selectedFeed: feed, selectedArticle: null, filteredArticles: [] })
         if (feed) {
-            let articles = await dbHelpers.getArticlesByFeed(feed.id)
+            const feedId = feed.id
+            let articles = await dbHelpers.getArticlesByFeed(feedId)
+
+            // 竞态检查：如果用户已切换到其他订阅源，丢弃本次结果
+            if (get().selectedFeed?.id !== feedId) return
 
             // 如果没有文章，自动刷新获取
             if (articles.length === 0) {
-                await get().refreshFeed(feed.id)
-                articles = await dbHelpers.getArticlesByFeed(feed.id)
+                await get().refreshFeed(feedId)
+                if (get().selectedFeed?.id !== feedId) return
+                articles = await dbHelpers.getArticlesByFeed(feedId)
+                if (get().selectedFeed?.id !== feedId) return
             }
 
             set({ articles })
@@ -211,10 +218,12 @@ export const useFeedStore = create<FeedState>((set, get) => ({
                         articles.map(a => ({ id: a.id, title: a.title })),
                         feed.aiFilter
                     )
+                    if (get().selectedFeed?.id !== feedId) return
                     const filtered = articles.filter(a => matchedIds.has(a.id))
                     set({ filteredArticles: filtered, isFiltering: false })
                 } catch (err) {
                     console.error('AI filter failed:', err)
+                    if (get().selectedFeed?.id !== feedId) return
                     set({ filteredArticles: articles, isFiltering: false })
                 }
             } else {
@@ -270,12 +279,26 @@ export const useFeedStore = create<FeedState>((set, get) => ({
         }
     },
 
-    // 刷新所有订阅源
+    // 刷新所有订阅源（并发，最多同时 4 个）
     refreshAllFeeds: async () => {
         const { feeds, refreshFeed } = get()
-        for (const feed of feeds) {
-            await refreshFeed(feed.id)
-        }
+        const concurrency = 4
+        const queue = [...feeds]
+
+        const workers = Array.from({ length: concurrency }, async () => {
+            while (queue.length > 0) {
+                const feed = queue.shift()
+                if (feed) {
+                    try {
+                        await refreshFeed(feed.id)
+                    } catch (err) {
+                        console.error(`Failed to refresh ${feed.title}:`, err)
+                    }
+                }
+            }
+        })
+
+        await Promise.all(workers)
     },
 
     // 标记已读

@@ -4,6 +4,8 @@
  */
 import { useState, useRef, useEffect } from 'react'
 import { useFeedStore } from '@/stores/feedStore'
+import { useUIStore } from '@/stores/uiStore'
+import { toast } from 'sonner'
 import { chatWithAIStream, isAIConfigured, DEFAULT_MODEL } from '@/services/ai'
 import { fetchArticleContent } from '@/services/rss'
 import { extractTextFromHtml } from '@/services/contentExtractor'
@@ -14,6 +16,62 @@ import { Message } from './types'
 import { ChatNavbar } from './ChatNavbar'
 import { MessageList } from './MessageList'
 import { InputArea } from './InputArea'
+
+/** 解析输入中的 @[标题](type:id) 引用 */
+interface MentionRef {
+    fullMatch: string
+    title: string
+    type: 'note' | 'article'
+    id: string
+}
+
+function parseMentions(text: string): MentionRef[] {
+    const regex = /@\[([^\]]+)\]\((note|article):([^)]+)\)/g
+    const refs: MentionRef[] = []
+    let match
+    while ((match = regex.exec(text)) !== null) {
+        refs.push({
+            fullMatch: match[0],
+            title: match[1],
+            type: match[2] as 'note' | 'article',
+            id: match[3],
+        })
+    }
+    return refs
+}
+
+/** 从引用中获取实际内容，拼接为上下文字符串 */
+async function resolveMentionContext(refs: MentionRef[]): Promise<string> {
+    if (refs.length === 0) return ''
+
+    const parts: string[] = []
+
+    for (const ref of refs) {
+        try {
+            if (ref.type === 'note') {
+                const note = await dbHelpers.getNote(ref.id)
+                if (note) {
+                    parts.push(`[引用笔记「${note.title}」]\n${note.content.slice(0, 2000)}`)
+                }
+            } else {
+                const article = await db.articles.get(ref.id)
+                if (article) {
+                    const content = article.description || article.aiSummary || ''
+                    parts.push(`[引用文章「${article.title}」]\n${content.slice(0, 2000)}`)
+                }
+            }
+        } catch (err) {
+            console.error(`[AI Chat] Failed to resolve mention ${ref.type}:${ref.id}`, err)
+        }
+    }
+
+    return parts.length > 0 ? '\n\n--- 引用上下文 ---\n' + parts.join('\n\n') : ''
+}
+
+/** 移除消息中的引用标记，保留标题用于显示 */
+function stripMentionMarkup(text: string): string {
+    return text.replace(/@\[([^\]]+)\]\((note|article):[^)]+\)/g, '@$1')
+}
 
 interface AIChatProps {
     isOpen: boolean
@@ -26,7 +84,6 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [articleContent, setArticleContent] = useState<string>('')
-    const [isLoadingContent, setIsLoadingContent] = useState(false)
     const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
     const [isStarred, setIsStarred] = useState(false)
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
@@ -123,7 +180,6 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
 
     const loadArticleContent = async () => {
         if (!selectedArticle) return
-        setIsLoadingContent(true)
         try {
             const html = await fetchArticleContent(selectedArticle.link)
             const text = extractTextFromHtml(html)
@@ -133,14 +189,22 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
             if (selectedArticle.aiSummary) {
                 setArticleContent(selectedArticle.aiSummary)
             }
-        } finally {
-            setIsLoadingContent(false)
         }
     }
 
     const handleSend = async (content?: string, fromMessageIndex?: number) => {
         const messageContent = content || input.trim()
-        if (!messageContent || isLoading || !isAIConfigured()) return
+        if (!messageContent || isLoading) return
+
+        if (!isAIConfigured()) {
+            toast.error('AI 功能需要配置 API Key', {
+                action: {
+                    label: '去配置',
+                    onClick: () => useUIStore.getState().setAISettingsOpen(true)
+                }
+            })
+            return
+        }
 
         const abortController = new AbortController()
         abortControllerRef.current = abortController
@@ -148,7 +212,7 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
         const userMessage: Message = {
             id: generateUUID(),
             role: 'user',
-            content: messageContent,
+            content: stripMentionMarkup(messageContent),
             timestamp: Date.now(),
         }
 
@@ -181,11 +245,16 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
                 content: m.content,
             }))
 
+            // 解析 @ 引用并加载上下文
+            const mentions = parseMentions(messageContent)
+            const mentionContext = await resolveMentionContext(mentions)
+            const fullArticleContext = articleContent + mentionContext
+
             await chatWithAIStream(
-                userMessage.content,
+                stripMentionMarkup(userMessage.content),
                 history,
                 selectedArticle?.title || '',
-                articleContent,
+                fullArticleContext,
                 (chunk) => {
                     setMessages(prev =>
                         prev.map(m =>
@@ -308,7 +377,7 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
     if (!isOpen) return null
 
     return (
-        <div className="flex flex-col h-full border-l border-slate-200 bg-slate-50 shadow-xl">
+        <div className="flex flex-col h-full border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-xl">
             <ChatNavbar
                 isStarred={isStarred}
                 hasMessages={messages.length > 0}
@@ -317,7 +386,7 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
                 onClose={onClose}
             />
             {selectedArticle && articleContent && (
-                <div className="px-4 py-1.5 bg-orange-50/50 border-b border-orange-100/50 text-[10px] text-orange-400 flex justify-between items-center">
+                <div className="px-4 py-1.5 bg-orange-50/50 dark:bg-orange-900/20 border-b border-orange-100/50 dark:border-orange-800/30 text-[10px] text-orange-400 flex justify-between items-center">
                     <span className="truncate max-w-[200px]">Context: {selectedArticle.title}</span>
                     <span>{articleContent.length} chars</span>
                 </div>
@@ -340,7 +409,6 @@ export function AIChat({ isOpen, onClose }: AIChatProps) {
             <InputArea
                 input={input}
                 isLoading={isLoading}
-                isAIConfigured={isAIConfigured()}
                 selectedArticle={selectedArticle}
                 hasMessages={messages.length > 0}
                 selectedModel={selectedModel}

@@ -23,16 +23,18 @@ export function FeedList({ isExpanded, onToggle }: FeedListProps) {
     } = useFeedStore()
 
     // 使用筛选后的文章列表
-    const displayArticles = filteredArticles.length > 0 ? filteredArticles : articles
+    // 区分"未筛选"（无 aiFilter）和"筛选结果为空"（有 aiFilter 但 0 匹配）
+    const hasFilter = !!selectedFeed?.aiFilter
+    const displayArticles = hasFilter ? filteredArticles : (filteredArticles.length > 0 ? filteredArticles : articles)
 
     // 收缩状态显示
     if (!isExpanded) {
         return (
-            <div className="flex flex-col h-full items-center py-4 gap-4">
+            <div className="flex flex-col h-full items-center py-4 gap-4 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700">
                 {/* 展开按钮 */}
                 <button
                     onClick={onToggle}
-                    className="btn-ghost p-2 text-slate-600 hover:text-orange-500"
+                    className="btn-ghost p-2 text-slate-600 dark:text-slate-400 hover:text-orange-500"
                     title="展开文章列表"
                 >
                     <PanelLeftOpen size={20} />
@@ -62,7 +64,7 @@ export function FeedList({ isExpanded, onToggle }: FeedListProps) {
 
     if (!selectedFeed) {
         return (
-            <div className="flex items-center justify-center h-full text-slate-400">
+            <div className="flex items-center justify-center h-full text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900">
                 <p>选择一个订阅源查看文章</p>
             </div>
         )
@@ -71,9 +73,9 @@ export function FeedList({ isExpanded, onToggle }: FeedListProps) {
     return (
         <div className="flex flex-col h-full">
             {/* 头部 */}
-            <div className="flex-shrink-0 p-4 border-b border-slate-200">
+            <div className="flex-shrink-0 p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                 <div className="flex items-center justify-between mb-2">
-                    <h2 className="font-semibold text-slate-800 truncate flex-1">
+                    <h2 className="font-semibold text-slate-800 dark:text-slate-100 truncate flex-1">
                         {selectedFeed.title}
                     </h2>
                     <button
@@ -106,7 +108,7 @@ export function FeedList({ isExpanded, onToggle }: FeedListProps) {
             </div>
 
             {/* 文章卡片流 */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 dark:bg-slate-900">
                 {displayArticles.length === 0 ? (
                     <div className="text-center py-8 text-slate-400">
                         {isFiltering ? '正在筛选...' : '暂无文章'}
@@ -152,7 +154,7 @@ function ArticleCard({
     return (
         <div
             className={clsx(
-                'card p-4 cursor-pointer transition-all hover:shadow-md',
+                'card p-4 cursor-pointer transition-all hover:shadow-md dark:bg-slate-800 dark:border-slate-700',
                 isSelected && 'ring-2 ring-orange-500',
                 article.isRead && 'opacity-70'
             )}
@@ -163,7 +165,7 @@ function ArticleCard({
                 <h3
                     className={clsx(
                         'flex-1 font-medium leading-snug',
-                        article.isRead ? 'text-slate-400' : 'text-slate-800'
+                        article.isRead ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'
                     )}
                 >
                     {article.title}
@@ -177,7 +179,7 @@ function ArticleCard({
             </div>
 
             {/* 时间戳 */}
-            <div className="flex items-center gap-1 mt-3 text-xs text-slate-400">
+            <div className="flex items-center gap-1 mt-3 text-xs text-slate-400 dark:text-slate-500">
                 <Clock size={12} />
                 <span>{timeAgo}</span>
             </div>

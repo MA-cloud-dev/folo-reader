@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bot, User, Loader2, Edit2, RotateCcw, Trash2, Check, MessageSquare, Copy, X } from 'lucide-react'
+import { Bot, User, Loader2, Edit2, RotateCcw, Trash2, Check, MessageSquare, Copy, X, AlertCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 import { AI_MODELS } from '@/services/ai'
 import { Message } from './types'
@@ -84,8 +84,8 @@ export function MessageList({
     // === 空状态 ===
     if (!isAIConfigured) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">
-                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-8">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
                     <Bot size={32} className="opacity-50" />
                 </div>
                 <p className="text-sm">请先在设置中配置 API Key</p>
@@ -139,23 +139,24 @@ export function MessageList({
                     {/* 中断消息显示为特殊状态 */}
                     {message.status === 'interrupted' ? (
                         <div className="flex-1 mx-1">
-                            <div className="flex items-center justify-between px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs border border-red-100">
-                                <span>已中断</span>
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={() => onRetry(index)}
-                                        className="flex items-center gap-1 hover:text-red-700 hover:bg-red-100/50 px-1.5 py-0.5 rounded transition-colors"
-                                    >
-                                        <RotateCcw size={12} />
-                                        重新生成
-                                    </button>
-                                    <button
-                                        onClick={() => onDelete(message.id)}
-                                        className="hover:text-red-700 hover:bg-red-100/50 p-0.5 rounded transition-colors"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </div>
+                            <div className="flex items-center gap-2 p-2 mx-4 mb-4 text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/30 rounded-lg">
+                                <AlertCircle size={14} />
+                                <span>上一次请求被中断</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => onRetry(index)}
+                                    className="flex items-center gap-1 hover:text-red-700 hover:bg-red-100/50 px-1.5 py-0.5 rounded transition-colors"
+                                >
+                                    <RotateCcw size={12} />
+                                    重新生成
+                                </button>
+                                <button
+                                    onClick={() => onDelete(message.id)}
+                                    className="hover:text-red-700 hover:bg-red-100/50 p-0.5 rounded transition-colors"
+                                >
+                                    <X size={12} />
+                                </button>
                             </div>
                         </div>
                     ) : (
@@ -166,7 +167,7 @@ export function MessageList({
                                     'w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5',
                                     message.role === 'user'
                                         ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm'
-                                        : 'bg-white text-orange-500 border border-slate-200 shadow-sm'
+                                        : 'bg-white text-orange-500 border border-slate-200 shadow-sm dark:bg-slate-800 dark:border-slate-700'
                                 )}
                             >
                                 {message.role === 'user' ? (
@@ -186,11 +187,11 @@ export function MessageList({
                                     'flex items-center gap-1.5',
                                     message.role === 'user' && 'flex-row-reverse'
                                 )}>
-                                    <span className="text-[11px] font-medium text-slate-500">
+                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                                         {message.role === 'user' ? '你' : 'AI'}
                                     </span>
                                     {message.role === 'assistant' && message.model && (
-                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                                        <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">
                                             {getModelDisplayName(message.model)}
                                         </span>
                                     )}
@@ -202,7 +203,7 @@ export function MessageList({
                                         <textarea
                                             value={editingContent}
                                             onChange={(e) => onEditChange(e.target.value)}
-                                            className="w-full px-3 py-2 border border-orange-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 bg-white"
+                                            className="w-full px-3 py-2 border border-orange-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
                                             rows={3}
                                             autoFocus
                                         />
@@ -215,7 +216,7 @@ export function MessageList({
                                             </button>
                                             <button
                                                 onClick={onCancelEdit}
-                                                className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-xs hover:bg-slate-200 transition-colors"
+                                                className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-xs hover:bg-slate-200 transition-colors dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
                                             >
                                                 取消
                                             </button>
@@ -228,13 +229,13 @@ export function MessageList({
                                                 'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
                                                 message.role === 'user'
                                                     ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white rounded-tr-md shadow-sm'
-                                                    : 'bg-white border border-slate-100 text-slate-700 rounded-tl-md shadow-sm'
+                                                    : 'bg-white border border-slate-100 text-slate-700 rounded-tl-md shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
                                             )}
                                         >
                                             {message.role === 'assistant' ? (
                                                 message.content ? (
                                                     <div
-                                                        className="prose prose-sm max-w-none prose-headings:text-slate-800 prose-p:text-slate-700 prose-a:text-orange-600"
+                                                        className="prose prose-sm max-w-none prose-headings:text-slate-800 prose-p:text-slate-700 prose-a:text-orange-600 dark:prose-headings:text-slate-200 dark:prose-p:text-slate-300 dark:prose-a:text-orange-400"
                                                         dangerouslySetInnerHTML={{ __html: message.content }}
                                                     />
                                                 ) : (
@@ -264,8 +265,8 @@ export function MessageList({
                                                 className={clsx(
                                                     "p-1 rounded transition-all flex items-center gap-1",
                                                     copiedId === message.id
-                                                        ? "text-green-600 bg-green-50"
-                                                        : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                                                        ? "text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400"
+                                                        : "text-slate-300 hover:text-slate-500 hover:bg-slate-100 dark:text-slate-600 dark:hover:text-slate-400 dark:hover:bg-slate-700"
                                                 )}
                                                 title="复制"
                                             >
@@ -282,7 +283,7 @@ export function MessageList({
                                             {message.role === 'user' && (
                                                 <button
                                                     onClick={() => onStartEdit(message.id, message.content)}
-                                                    className="p-1 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded transition-colors"
+                                                    className="p-1 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded transition-colors dark:text-slate-600 dark:hover:text-orange-400 dark:hover:bg-orange-900/20"
                                                     title="编辑"
                                                 >
                                                     <Edit2 size={12} />
@@ -292,7 +293,7 @@ export function MessageList({
                                             {message.role === 'assistant' && message.content && (
                                                 <button
                                                     onClick={() => onRetry(index)}
-                                                    className="p-1 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded transition-colors"
+                                                    className="p-1 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded transition-colors dark:text-slate-600 dark:hover:text-orange-400 dark:hover:bg-orange-900/20"
                                                     title="重新生成"
                                                 >
                                                     <RotateCcw size={12} />
@@ -301,7 +302,7 @@ export function MessageList({
                                             {/* 删除 */}
                                             <button
                                                 onClick={() => onDelete(message.id)}
-                                                className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors dark:text-slate-600 dark:hover:text-red-400 dark:hover:bg-red-900/20"
                                                 title="删除"
                                             >
                                                 <Trash2 size={12} />
