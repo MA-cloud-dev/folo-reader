@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&amp;display=swap');
+    </style>
+  </defs>
+  
+  <!-- Background: Rounded Square -->
+  <rect width="512" height="512" rx="110" fill="white"/>
+  
+  <!-- Group for Logo, centered horizontally and slightly up -->
+  <g transform="translate(106, 90)">
+    <!-- Main F Body (Left Stem & Top Arm Wrapper) -->
+    <!-- Stylized F shape resembling a book spine and cover -->
+    <path d="M40,0 L200,0 C240,0 260,20 260,60 L260,80 L80,80 L80,140 L220,140 C240,140 240,180 220,180 L80,180 L80,260 C80,310 30,320 0,300 L0,40 C0,10 20,0 40,0 Z" fill="#00a0e9"/>
+    
+    <!-- The "Open Page" / Inner F Accent -->
+    <!-- A lighter or outlined shape to suggest pages -->
+    <path d="M140,50 L270,50 C290,50 300,60 300,80 L300,240 C300,270 270,280 250,270 L140,240 L140,50 Z" fill="#e0f9ff" stroke="#00a0e9" stroke-width="18" stroke-linejoin="round"/>
+    
+    <!-- Re-drawing the blue F parts on top of the page for layering effect -->
+    <!-- Top Bar -->
+    <path d="M60,20 L240,20 C260,20 270,30 270,50 L270,70 L60,70 Z" fill="#00a0e9"/>
+    <!-- Middle Bar -->
+    <path d="M60,130 L210,130 C220,130 220,160 210,160 L60,160 Z" fill="#00a0e9"/>
+    <!-- Stem -->
+    <path d="M20,20 L80,20 L80,300 C80,330 40,330 20,300 Z" fill="#00a0e9"/>
+  </g>
+
+  <!-- Text "Folo" at the bottom -->
+  <text x="256" y="440" font-family="Inter, Arial, sans-serif" font-weight="bold" font-size="90" text-anchor="middle" fill="#00a0e9" letter-spacing="-2">Folo</text>
+</svg>
